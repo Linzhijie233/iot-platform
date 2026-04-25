@@ -1,0 +1,259 @@
+.deviceListPage {
+  :global {
+    .ant-pro-page-container-children-container {
+      padding-inline: 40px;
+      padding-block: 24px;
+    }
+  }
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.overviewCard {
+  padding: 16px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.overviewCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgb(15 23 42 / 9%);
+}
+
+.overviewCardActive {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 8%), 0 14px 32px rgb(15 23 42 / 10%);
+}
+
+.overviewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.overviewHead strong {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.overviewHint {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.alertCard {
+  margin-bottom: 16px;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+}
+
+.filterCard {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+}
+
+.searchGrid {
+  display: grid;
+  grid-template-columns: 2.1fr repeat(3, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.tableCard {
+  padding: 14px 0 16px;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+}
+
+.tableMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px 12px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.tableMeta strong {
+  color: #1677ff;
+}
+
+.tableWrap {
+  :global {
+    .ant-pro-table-search {
+      display: none;
+    }
+
+    .ant-pro-table-list-toolbar {
+      display: none;
+    }
+
+    .ant-pro-card {
+      box-shadow: none;
+    }
+
+    .ant-pro-card-body {
+      padding: 0;
+    }
+
+    .ant-table-pagination.ant-pagination {
+      margin: 0;
+      padding: 16px 20px 20px;
+    }
+  }
+}
+
+.deviceLink {
+  font-weight: 500;
+}
+
+.statusTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusTag::before {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  content: "";
+}
+
+.statusOnline::before {
+  background: #22c55e;
+}
+
+.statusOffline::before {
+  background: #94a3b8;
+}
+
+.statusAlarm::before {
+  background: #ef4444;
+}
+
+.statusPending::before {
+  background: #f59e0b;
+}
+
+.actionLinks {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sectionTitle {
+  margin-bottom: 12px;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metricCard {
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.metricLabel {
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.metricValue {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.metricText {
+  color: #334155;
+  line-height: 1.6;
+}
+
+.uploadPanel {
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.uploadTitle {
+  margin-bottom: 6px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.uploadMeta {
+  margin-bottom: 12px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.uploadActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+@media (max-width: 1440px) {
+  .overviewGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .searchGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tableMeta {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .overviewGrid,
+  .searchGrid,
+  .metricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .uploadActions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,91 @@
+.merchantRiskPage {
+  :global {
+    .ant-pro-page-container-children-container {
+      padding-inline: 40px;
+      padding-block: 24px;
+    }
+  }
+}
+
+.heroCard {
+  margin-bottom: 16px;
+  padding: 28px 24px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+}
+
+.heroTitle {
+  margin-bottom: 16px;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.2;
+}
+
+.heroDesc {
+  color: #64748b;
+  font-size: 18px;
+  line-height: 1.8;
+}
+
+.contentCard {
+  padding: 20px 24px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+}
+
+.sectionTitle {
+  margin-bottom: 24px;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 32px;
+}
+
+.infoGrid {
+  display: grid;
+  gap: 18px;
+}
+
+.infoItem {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.infoLabel {
+  color: #475569;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.infoValue {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+@media (max-width: 992px) {
+  .contentGrid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .heroTitle {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 640px) {
+  .infoItem {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
