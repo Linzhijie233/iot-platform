@@ -4,6 +4,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './modules/user/user.module';
+import { ChinaTelecomModule } from './modules/china-telecom/china-telecom.module';
+import { ChinaUnicomModule } from './modules/china-unicom/china-unicom.module';
+import { ChinaMobileModule } from './modules/china-mobile/china-mobile.module';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import { UserModule } from './modules/user/user.module';
       }),
     }),
     UserModule,
+    ChinaTelecomModule,
+    ChinaUnicomModule,
+    ChinaMobileModule,
   ],
   controllers: [AppController],
   providers: [AppService],
