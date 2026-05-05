@@ -1,9 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { ChinaMobileService } from './china-mobile.service';
+import {
+  ChinaMobileService,
+  QUERY_SIM_DATA_USAGE_PATH,
+  SIM_STOP_REASON_PATH,
+} from './china-mobile.service';
 
 describe('ChinaMobileService', () => {
   let service: ChinaMobileService;
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -15,6 +25,7 @@ describe('ChinaMobileService', () => {
             get: (key: string) => {
               if (key === 'MOBILE_AIOT_AK') return 'test-ak';
               if (key === 'MOBILE_AIOT_SK') return 'test';
+              if (key === 'MOBILE_CAP_BODY_URL') return 'https://example.com/cap';
               return undefined;
             },
           },
@@ -125,5 +136,128 @@ describe('ChinaMobileService', () => {
     expect(() =>
       bare.buildAuthorizationHeader({ path: '/x' }),
     ).toThrow(/MOBILE_AIOT_SK/);
+  });
+
+  it('querySimStopReason 未传卡标识时抛错', async () => {
+    await expect(service.querySimStopReason({})).rejects.toThrow(/至少提供/);
+  });
+
+  it('querySimStopReason 成功时返回 data', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          traceId: 't1',
+          code: '0',
+          msg: '正确',
+          data: [{ platformType: 'OneLink-CT', stopReason: '000020000020' }],
+        }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    jest.spyOn(service, 'createPublicParams').mockReturnValue({
+      ak: 'ak1',
+      timestamp: '1740783456',
+      nonce: 'n1',
+    });
+    jest.spyOn(service, 'buildAuthorizationHeader').mockReturnValue(
+      'Bearer method=HmacSHA256&sign=mock',
+    );
+
+    const out = await service.querySimStopReason({ msisdn: '14765804176' });
+    expect(out.traceId).toBe('t1');
+    expect(out.data).toEqual([
+      { platformType: 'OneLink-CT', stopReason: '000020000020' },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://cmp.api.cmiot.cn${SIM_STOP_REASON_PATH}`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer method=HmacSHA256&sign=mock',
+        }),
+        body: '{"ak":"ak1","msisdn":"14765804176","nonce":"n1","timestamp":"1740783456"}',
+      }),
+    );
+  });
+
+  it('querySimStopReason code 非 0 时抛错', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          traceId: 't1',
+          code: '1001',
+          msg: '业务失败',
+          data: [],
+        }),
+    }) as unknown as typeof fetch;
+
+    jest.spyOn(service, 'createPublicParams').mockReturnValue({
+      ak: 'ak1',
+      timestamp: '1',
+      nonce: 'n1',
+    });
+    jest.spyOn(service, 'buildAuthorizationHeader').mockReturnValue('Bearer x');
+
+    await expect(
+      service.querySimStopReason({ iccid: '898600D6991330004146' }),
+    ).rejects.toThrow(/\[1001\]/);
+  });
+
+  it('querySimDataUsage 未传卡标识时抛错', async () => {
+    await expect(service.querySimDataUsage({})).rejects.toThrow(/至少提供/);
+  });
+
+  it('querySimDataUsage 成功时返回 data', async () => {
+    jest.spyOn(service, 'createNonce').mockReturnValue('n1');
+    jest.spyOn(service, 'createTimestampSeconds').mockReturnValue('1749783456');
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          traceId: 't2',
+          code: '0',
+          msg: '成功',
+          data: {
+            dataAmount: '1024.00',
+            apnUseAmountList: [
+              {
+                apnName: 'CMIOT',
+                apnUseAmount: '1024',
+                pccCodeUseAmountList: [
+                  { pccCode: '12341234', pccCodeUseAmount: '1024' },
+                ],
+              },
+            ],
+          },
+        }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const out = await service.querySimDataUsage({ msisdn: '1475500417' });
+    expect(out.traceId).toBe('t2');
+    expect(out.data.dataAmount).toBe('1024.00');
+    expect(out.data.apnUseAmountList).toHaveLength(1);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://cas.api.cmmiot.com${QUERY_SIM_DATA_USAGE_PATH}`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timestamp: '1749783456',
+          url: 'https://example.com/cap',
+          nonce: 'n1',
+          msisdn: '1475500417',
+        }),
+      }),
+    );
   });
 });

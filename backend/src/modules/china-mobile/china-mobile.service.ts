@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, randomUUID } from 'crypto';
 
@@ -22,11 +22,77 @@ export type ChinaMobileAiotSignInput = {
   bodyObject?: Record<string, unknown>;
 };
 
-const CONFIG_AK = 'MOBILE_AIOT_AK';
-const CONFIG_SK = 'MOBILE_AIOT_SK';
+const CONFIG_AK = '572f816984e741de910714523bac1146';
+const CONFIG_SK = 'eb24c75947254e788816dabbe4a7999a';
+/** 可选；默认 `https://cmp.api.cmiot.cn` */
+const CONFIG_BASE_URL = 'MOBILE_AIOT_BASE_URL';
+
+const DEFAULT_AIOT_BASE_URL = 'https://cmp.api.cmaiot.cn';
+
+/** 与文档「请求示例」JSON 中 `url` 字段对应（非网关 Host） */
+const CONFIG_CAP_BODY_URL = 'MOBILE_CAP_BODY_URL';
+const CONFIG_CAP_BASE_URL = 'MOBILE_CAP_BASE_URL';
+
+const DEFAULT_CAP_BASE_URL = 'https://cas.api.cmmiot.com';
+
+/** GPRS 用量（KB）— 文档：`POST /cap/v5/ec/query/sim-data-usage` */
+export const QUERY_SIM_DATA_USAGE_PATH = '/cap/v5/ec/query/sim-data-usage';
+
+/** SIM 停机原因查询接口 Path（与签名 path 一致） */
+export const SIM_STOP_REASON_PATH = '/cmp/v5/ec/query/sim-stop-reason';
+
+export type QuerySimStopReasonParams = {
+  msisdn?: string;
+  iccid?: string;
+  imsi?: string;
+};
+
+export type SimStopReasonItem = {
+  platformType: string;
+  stopReason: string;
+  shutdownReasonDesc?: string;
+};
+
+type SimStopReasonApiEnvelope = {
+  traceId: string;
+  code: string;
+  msg: string;
+  data?: SimStopReasonItem[];
+};
+
+export type QuerySimDataUsageParams = {
+  msisdn?: string;
+  iccid?: string;
+  imsi?: string;
+};
+
+export type PccCodeUseAmountItem = {
+  pccCode: string;
+  pccCodeUseAmount: string;
+};
+
+export type ApnUseAmountItem = {
+  apnName: string;
+  apnUseAmount: string;
+  pccCodeUseAmountList?: PccCodeUseAmountItem[];
+};
+
+export type SimDataUsagePayload = {
+  dataAmount: string;
+  apnUseAmountList: ApnUseAmountItem[];
+};
+
+type SimDataUsageApiEnvelope = {
+  traceId: string;
+  code: string;
+  msg: string;
+  data?: SimDataUsagePayload;
+};
 
 @Injectable()
 export class ChinaMobileService {
+  private readonly logger = new Logger(ChinaMobileService.name);
+
   constructor(private readonly config: ConfigService) {}
 
   /** 文档要求秒级时间戳字符串 */
@@ -44,7 +110,7 @@ export class ChinaMobileService {
    * `Bearer method=HmacSHA256&sign=<base64_signature>`
    */
   buildAuthorizationHeader(input: ChinaMobileAiotSignInput): string {
-    const sk = this.config.get<string>(CONFIG_SK);
+    const sk = CONFIG_SK;
     if (!sk?.trim()) {
       throw new Error(
         `请在环境变量中配置 ${CONFIG_SK}（AIoT API AccessKey 对应密钥 secretKey）`,
@@ -65,7 +131,7 @@ export class ChinaMobileService {
     timestamp: string;
     nonce: string;
   } {
-    const ak = this.config.get<string>(CONFIG_AK);
+    const ak = CONFIG_AK;
     if (!ak?.trim()) {
       throw new Error(`请在环境变量中配置 ${CONFIG_AK}（API 访问账号名 ak）`);
     }
@@ -149,5 +215,200 @@ export class ChinaMobileService {
       sorted[k] = obj[k];
     }
     return JSON.stringify(sorted);
+  }
+
+  private getAiotBaseUrl(): string {
+    const raw = this.config.get<string>(CONFIG_BASE_URL)?.trim();
+    return raw || DEFAULT_AIOT_BASE_URL;
+  }
+
+  private getCapBaseUrl(): string {
+    const raw = this.config.get<string>(CONFIG_CAP_BASE_URL)?.trim();
+    return raw || DEFAULT_CAP_BASE_URL;
+  }
+
+  /**
+   * GPRS 用量（KB）。按文档请求示例组包：`timestamp`、`url`、`nonce` 及 msisdn/iccid/imsi 至少其一。
+   * `POST /cap/v5/ec/query/sim-data-usage`
+   */
+  async querySimDataUsage(
+    params: QuerySimDataUsageParams,
+    at: Date = new Date(),
+  ): Promise<{ traceId: string; msg: string; data: SimDataUsagePayload }> {
+    const msisdn = params.msisdn?.trim();
+    const iccid = params.iccid?.trim();
+    const imsi = params.imsi?.trim();
+    if (!msisdn && !iccid && !imsi) {
+      throw new Error('querySimDataUsage 需至少提供 msisdn、iccid、imsi 之一');
+    }
+
+    const bodyUrl = this.config.get<string>(CONFIG_CAP_BODY_URL)?.trim();
+    if (!bodyUrl) {
+      throw new Error(
+        `请在环境变量中配置 ${CONFIG_CAP_BODY_URL}（请求体 JSON 字段 url，与文档示例一致）`,
+      );
+    }
+
+    const bodyObject: Record<string, string> = {
+      timestamp: this.createTimestampSeconds(at),
+      url: bodyUrl,
+      nonce: this.createNonce(),
+    };
+    if (msisdn) bodyObject.msisdn = msisdn;
+    if (iccid) bodyObject.iccid = iccid;
+    if (imsi) bodyObject.imsi = imsi;
+
+    const body = JSON.stringify(bodyObject);
+
+    const url = `${this.getCapBaseUrl()}${QUERY_SIM_DATA_USAGE_PATH}`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `SIM 流量查询请求网络/传输异常 url=${url} message=${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new Error(`SIM 流量查询请求失败（网络）: ${message}`);
+    }
+
+    const text = await res.text();
+    let json: SimDataUsageApiEnvelope;
+    try {
+      json = JSON.parse(text) as SimDataUsageApiEnvelope;
+    } catch {
+      this.logger.error(
+        `SIM 流量查询接口返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
+      );
+      throw new Error(
+        `SIM 流量查询接口返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
+      );
+    }
+
+    if (!res.ok) {
+      this.logger.error(
+        `SIM 流量查询接口 HTTP 错误: status=${res.status}, traceId=${json.traceId ?? '—'}, code=${json.code ?? '—'}, msg=${json.msg ?? text.slice(0, 500)}`,
+      );
+      throw new Error(
+        `SIM 流量查询接口 HTTP ${res.status}：${json.msg ?? text.slice(0, 200)}`,
+      );
+    }
+
+    if (json.code !== '0') {
+      this.logger.warn(
+        `SIM 流量查询业务失败: traceId=${json.traceId}, code=${json.code}, msg=${json.msg ?? ''}`,
+      );
+      throw new Error(
+        `SIM 流量查询接口失败 [${json.code}] ${json.msg ?? ''}`.trim(),
+      );
+    }
+
+    const data = json.data;
+    if (!data || !Array.isArray(data.apnUseAmountList)) {
+      throw new Error('SIM 流量查询成功但 data 结构异常');
+    }
+
+    return {
+      traceId: json.traceId,
+      msg: json.msg,
+      data: {
+        dataAmount: String(data.dataAmount ?? ''),
+        apnUseAmountList: data.apnUseAmountList,
+      },
+    };
+  }
+
+  /**
+   * 集团客户 SIM 停机原因查询（文档：POST `/cmp/v5/ec/query/sim-stop-reason`）
+   * @throws 未配置 AK/SK、缺少卡标识、`code !== "0"`、HTTP 非 2xx 或响应非 JSON
+   */
+  async querySimStopReason(
+    params: QuerySimStopReasonParams,
+    at: Date = new Date(),
+  ): Promise<{ traceId: string; msg: string; data: SimStopReasonItem[] }> {
+    const msisdn = params.msisdn?.trim();
+    const iccid = params.iccid?.trim();
+    const imsi = params.imsi?.trim();
+    if (!msisdn && !iccid && !imsi) {
+      throw new Error('querySimStopReason 需至少提供 msisdn、iccid、imsi 之一');
+    }
+
+    const pub = this.createPublicParams(at);
+    const bodyObject: Record<string, unknown> = {
+      ak: pub.ak,
+      nonce: pub.nonce,
+      timestamp: pub.timestamp,
+    };
+    if (msisdn) bodyObject.msisdn = msisdn;
+    if (iccid) bodyObject.iccid = iccid;
+    if (imsi) bodyObject.imsi = imsi;
+
+    const body = ChinaMobileService.canonicalJsonBody(bodyObject);
+    const auth = this.buildAuthorizationHeader({
+      path: SIM_STOP_REASON_PATH,
+      bodyObject,
+    });
+
+    const url = `${this.getAiotBaseUrl()}${SIM_STOP_REASON_PATH}`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: auth,
+        },
+        body,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `SIM 停机原因请求网络/传输异常 url=${url} message=${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new Error(`SIM 停机原因请求失败（网络）: ${message}`);
+    }
+
+    const text = await res.text();
+    let json: SimStopReasonApiEnvelope;
+    try {
+      json = JSON.parse(text) as SimStopReasonApiEnvelope;
+    } catch {
+      this.logger.error(
+        `SIM 停机原因接口返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
+      );
+      throw new Error(
+        `SIM 停机原因接口返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
+      );
+    }
+
+    if (!res.ok) {
+      this.logger.error(
+        `SIM 停机原因接口 HTTP 错误: status=${res.status}, traceId=${json.traceId ?? '—'}, code=${json.code ?? '—'}, msg=${json.msg ?? text.slice(0, 500)}`,
+      );
+      throw new Error(
+        `SIM 停机原因接口 HTTP ${res.status}：${json.msg ?? text.slice(0, 200)}`,
+      );
+    }
+
+    if (json.code !== '0') {
+      this.logger.warn(
+        `SIM 停机原因业务失败: traceId=${json.traceId}, code=${json.code}, msg=${json.msg ?? ''}`,
+      );
+      throw new Error(
+        `SIM 停机原因接口失败 [${json.code}] ${json.msg ?? ''}`.trim(),
+      );
+    }
+
+    return {
+      traceId: json.traceId,
+      msg: json.msg,
+      data: Array.isArray(json.data) ? json.data : [],
+    };
   }
 }
