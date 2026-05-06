@@ -25,13 +25,21 @@ export type ChinaMobileAiotSignInput = {
 const CONFIG_AK = 'MOBILE_AIOT_AK';
 const CONFIG_SK = 'MOBILE_AIOT_SK';
 
-/** 《移动.pdf》OneLink 能力：默认 `https://api.iot.10086.cn` */
+/** 为 `true`/`1`/`yes` 时使用下方 MOBILE_ONELINK_SANDBOX_*；否则使用 MOBILE_ONELINK_* */
+const CONFIG_ONELINK_USE_SANDBOX = 'MOBILE_ONELINK_USE_SANDBOX';
+
+/** 《移动.pdf》OneLink 生产：网关基址 */
 const CONFIG_ONELINK_BASE_URL = 'MOBILE_ONELINK_BASE_URL';
 const DEFAULT_ONELINK_BASE_URL = 'https://api.iot.10086.cn';
 
-/** 连接管理平台「客户信息 → 接入信息」中的 appid / password（非 AIoT HMAC 的 AK/SK） */
+/** OneLink 生产：连接管理平台「客户信息 → 接入信息」 */
 const CONFIG_ONELINK_APPID = 'MOBILE_ONELINK_APPID';
 const CONFIG_ONELINK_PASSWORD = 'MOBILE_ONELINK_PASSWORD';
+
+/** OneLink 沙箱（与生产键名一一对应） */
+const CONFIG_ONELINK_SANDBOX_BASE_URL = 'MOBILE_ONELINK_SANDBOX_BASE_URL';
+const CONFIG_ONELINK_SANDBOX_APPID = 'MOBILE_ONELINK_SANDBOX_APPID';
+const CONFIG_ONELINK_SANDBOX_PASSWORD = 'MOBILE_ONELINK_SANDBOX_PASSWORD';
 
 /** 文档 4.1.1：获取 token */
 export const ONELINK_GET_TOKEN_PATH = '/v5/ec/get/token';
@@ -210,9 +218,52 @@ export class ChinaMobileV2Service {
     return JSON.stringify(sorted);
   }
 
+  private isOnelinkSandbox(): boolean {
+    const raw = this.config
+      .get<string>(CONFIG_ONELINK_USE_SANDBOX)
+      ?.trim()
+      .toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+  }
+
   private getOnelinkBaseUrl(): string {
+    if (this.isOnelinkSandbox()) {
+      const raw = this.config
+        .get<string>(CONFIG_ONELINK_SANDBOX_BASE_URL)
+        ?.trim();
+      if (raw) return raw;
+      throw new Error(
+        `已启用 OneLink 沙箱（${CONFIG_ONELINK_USE_SANDBOX}=true），请配置 ${CONFIG_ONELINK_SANDBOX_BASE_URL}`,
+      );
+    }
     const raw = this.config.get<string>(CONFIG_ONELINK_BASE_URL)?.trim();
     return raw || DEFAULT_ONELINK_BASE_URL;
+  }
+
+  private getOnelinkAppid(): string {
+    const sandbox = this.isOnelinkSandbox();
+    const key = sandbox ? CONFIG_ONELINK_SANDBOX_APPID : CONFIG_ONELINK_APPID;
+    const appid = this.config.get<string>(key)?.trim();
+    if (!appid) {
+      throw new Error(
+        `请配置 ${key}（OneLink 接入 appid${sandbox ? '，沙箱' : ''}）`,
+      );
+    }
+    return appid;
+  }
+
+  private getOnelinkPassword(): string {
+    const sandbox = this.isOnelinkSandbox();
+    const key = sandbox
+      ? CONFIG_ONELINK_SANDBOX_PASSWORD
+      : CONFIG_ONELINK_PASSWORD;
+    const password = this.config.get<string>(key)?.trim();
+    if (!password) {
+      throw new Error(
+        `请配置 ${key}（OneLink 接入 password${sandbox ? '，沙箱' : ''}）`,
+      );
+    }
+    return password;
   }
 
   /** 文档：APPID + YYYYMMDDHHMISS（中国时区）+ 8 位流水 */
@@ -296,16 +347,8 @@ export class ChinaMobileV2Service {
   }
 
   private async fetchOnelinkToken(at: Date): Promise<string> {
-    const appid = this.config.get<string>(CONFIG_ONELINK_APPID)?.trim();
-    const password = this.config.get<string>(CONFIG_ONELINK_PASSWORD)?.trim();
-    if (!appid) {
-      throw new Error(`请配置 ${CONFIG_ONELINK_APPID}（OneLink 接入 appid）`);
-    }
-    if (!password) {
-      throw new Error(
-        `请配置 ${CONFIG_ONELINK_PASSWORD}（OneLink 接入 password）`,
-      );
-    }
+    const appid = this.getOnelinkAppid();
+    const password = this.getOnelinkPassword();
     const transid = ChinaMobileV2Service.buildOneLinkTransId(appid, at);
     const json = await this.onelinkGet<Array<{ token?: string; ttl?: string }>>(
       ONELINK_GET_TOKEN_PATH,
@@ -321,7 +364,7 @@ export class ChinaMobileV2Service {
 
   /**
    * 《移动.pdf》5.1.7 码号信息批量查询（CMIOT_API25S05）：
-   * `GET {MOBILE_ONELINK_BASE_URL}/v5/ec/query/sim-card-info/batch`
+   * `GET {MOBILE_ONELINK_BASE_URL 或 MOBILE_ONELINK_SANDBOX_BASE_URL}/v5/ec/query/sim-card-info/batch`（由 `MOBILE_ONELINK_USE_SANDBOX` 切换）
    * 公共参数 transid、token（先调 `/v5/ec/get/token`）；msisdns / iccids / imsis 三选一，多值下划线分隔。
    */
   async batchQuerySimCardInfo(
@@ -338,10 +381,7 @@ export class ChinaMobileV2Service {
           ? iccidList
           : imsiList;
 
-    const appid = this.config.get<string>(CONFIG_ONELINK_APPID)?.trim();
-    if (!appid) {
-      throw new Error(`请配置 ${CONFIG_ONELINK_APPID}（OneLink 接入 appid）`);
-    }
+    const appid = this.getOnelinkAppid();
 
     const token = await this.fetchOnelinkToken(at);
     const batchTransid = ChinaMobileV2Service.buildOneLinkTransId(appid, at);
