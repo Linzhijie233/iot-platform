@@ -8,6 +8,7 @@ import { ChinaTelecomModule } from './modules/china-telecom/china-telecom.module
 import { ChinaUnicomModule } from './modules/china-unicom/china-unicom.module';
 import { ChinaMobileModule } from './modules/china-mobile/china-mobile.module';
 import { SimModule } from './modules/sim/sim.module';
+import { ChinaMobileV2Module } from './modules/china-mobile-v2/china-mobile-v2.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SimModule } from './modules/sim/sim.module';
     ChinaUnicomModule,
     ChinaMobileModule,
     SimModule,
+    ChinaMobileV2Module,
   ],
   controllers: [AppController],
   providers: [AppService],
