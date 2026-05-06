@@ -27,7 +27,6 @@ describe('ChinaMobileService', () => {
               if (key === 'MOBILE_AIOT_AK') return 'test-ak';
               if (key === 'MOBILE_AIOT_SK') return 'test';
               if (key === 'MOBILE_CAP_BODY_URL') return 'https://example.com/cap';
-              if (key === 'MOBILE_CRP_EC') return 'test-ec';
               return undefined;
             },
           },
@@ -174,7 +173,7 @@ describe('ChinaMobileService', () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `https://cmp.api.cmiot.cn${SIM_STOP_REASON_PATH}`,
+      `https://cmp.api.cmaiot.cn${SIM_STOP_REASON_PATH}`,
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
@@ -218,6 +217,9 @@ describe('ChinaMobileService', () => {
   it('querySimDataUsage 成功时返回 data', async () => {
     jest.spyOn(service, 'createNonce').mockReturnValue('n1');
     jest.spyOn(service, 'createTimestampSeconds').mockReturnValue('1749783456');
+    jest.spyOn(service, 'buildAuthorizationHeader').mockReturnValue(
+      'Bearer method=HmacSHA256&sign=mock-cap',
+    );
 
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
@@ -252,13 +254,12 @@ describe('ChinaMobileService', () => {
       `https://cas.api.cmmiot.com${QUERY_SIM_DATA_USAGE_PATH}`,
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          timestamp: '1749783456',
-          url: 'https://example.com/cap',
-          nonce: 'n1',
-          msisdn: '1475500417',
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer method=HmacSHA256&sign=mock-cap',
+        },
+        body:
+          '{"msisdn":"1475500417","nonce":"n1","timestamp":"1749783456","url":"https://example.com/cap"}',
       }),
     );
   });
@@ -277,6 +278,9 @@ describe('ChinaMobileService', () => {
   it('batchQuerySimCardInfo 成功时返回 data 数组', async () => {
     jest.spyOn(service, 'createNonce').mockReturnValue('n1');
     jest.spyOn(service, 'createTimestampSeconds').mockReturnValue('1701203416');
+    jest.spyOn(service, 'buildAuthorizationHeader').mockReturnValue(
+      'Bearer method=HmacSHA256&sign=mock-crp',
+    );
 
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
@@ -307,15 +311,15 @@ describe('ChinaMobileService', () => {
     expect(out.data[0].iccid).toBe('898602B2211439268936');
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `https://cas.api.cmriot.cn${BATCH_QUERY_SIM_CARD_INFO_PATH}`,
+      `https://cmp.api.cmaiot.cn${BATCH_QUERY_SIM_CARD_INFO_PATH}`,
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({
-          timestamp: '1701203416',
-          ec: 'test-ec',
-          nonce: 'n1',
-          msisdns: '1475500012,1475500013',
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer method=HmacSHA256&sign=mock-crp',
+        },
+        body:
+          '{"ak":"test-ak","msisdns":"1475500012,1475500013","nonce":"n1","timestamp":"1701203416"}',
       }),
     );
   });

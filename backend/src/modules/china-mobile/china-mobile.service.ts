@@ -22,8 +22,8 @@ export type ChinaMobileAiotSignInput = {
   bodyObject?: Record<string, unknown>;
 };
 
-const CONFIG_AK = '572f816984e741de910714523bac1146';
-const CONFIG_SK = 'eb24c75947254e788816dabbe4a7999a';
+const CONFIG_AK = 'MOBILE_AIOT_AK';
+const CONFIG_SK = 'MOBILE_AIOT_SK';
 /** 可选；默认 `https://cmp.api.cmiot.cn` */
 const CONFIG_BASE_URL = 'MOBILE_AIOT_BASE_URL';
 
@@ -39,12 +39,12 @@ const DEFAULT_CAP_BASE_URL = 'https://cas.api.cmmiot.com';
 const CONFIG_CRP_EC = 'MOBILE_CRP_EC';
 const CONFIG_CRP_BASE_URL = 'MOBILE_CRP_BASE_URL';
 
-const DEFAULT_CRP_BASE_URL = 'https:/cmp.api.cmaiot.cn';
+const DEFAULT_CRP_BASE_URL = 'https://cmp.api.cmaiot.cn';
 
 /** GPRS 用量（KB）— 文档：`POST /cap/v5/ec/query/sim-data-usage` */
 export const QUERY_SIM_DATA_USAGE_PATH = '/cap/v5/ec/query/sim-data-usage';
 
-/** 批量查询卡信息 — 文档：`POST /crp/v2/ec/query/sim-card-info/batch`，最多 100 张 */
+/** 批量查询卡信息 — 文档：`POST /cmp/v5/ec/query/sim-card-info/batch`，最多 100 张 */
 export const BATCH_QUERY_SIM_CARD_INFO_PATH =
   '/cmp/v5/ec/query/sim-card-info/batch';
 
@@ -165,7 +165,7 @@ export class ChinaMobileService {
     timestamp: string;
     nonce: string;
   } {
-    const ak = CONFIG_AK;
+    const ak = this.config.get<string>(CONFIG_AK);
     if (!ak?.trim()) {
       throw new Error(`请在环境变量中配置 ${CONFIG_AK}（API 访问账号名 ak）`);
     }
@@ -320,16 +320,21 @@ export class ChinaMobileService {
     if (iccidList.length) bodyObject.iccids = iccidList.join(',');
     if (imeiList.length) bodyObject.imeis = imeiList.join(',');
 
-    console.log('bodyObject =>', bodyObject);
-
-    const body = JSON.stringify(bodyObject);
+    const body = ChinaMobileService.canonicalJsonBody(bodyObject);
+    const auth = this.buildAuthorizationHeader({
+      path: BATCH_QUERY_SIM_CARD_INFO_PATH,
+      bodyObject,
+    });
 
     const url = `${this.getCrpBaseUrl()}${BATCH_QUERY_SIM_CARD_INFO_PATH}`;
     let res: Response;
     try {
       res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: auth,
+        },
         body,
       });
     } catch (err) {
@@ -410,14 +415,21 @@ export class ChinaMobileService {
     if (iccid) bodyObject.iccid = iccid;
     if (imsi) bodyObject.imsi = imsi;
 
-    const body = JSON.stringify(bodyObject);
+    const body = ChinaMobileService.canonicalJsonBody(bodyObject);
+    const auth = this.buildAuthorizationHeader({
+      path: QUERY_SIM_DATA_USAGE_PATH,
+      bodyObject,
+    });
 
     const url = `${this.getCapBaseUrl()}${QUERY_SIM_DATA_USAGE_PATH}`;
     let res: Response;
     try {
       res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: auth,
+        },
         body,
       });
     } catch (err) {
