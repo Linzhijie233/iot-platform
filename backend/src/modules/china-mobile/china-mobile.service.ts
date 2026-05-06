@@ -35,8 +35,20 @@ const CONFIG_CAP_BASE_URL = 'MOBILE_CAP_BASE_URL';
 
 const DEFAULT_CAP_BASE_URL = 'https://cas.api.cmmiot.com';
 
+/** CRP 批量卡信息：`ec` + `timestamp` + `nonce` */
+const CONFIG_CRP_EC = 'MOBILE_CRP_EC';
+const CONFIG_CRP_BASE_URL = 'MOBILE_CRP_BASE_URL';
+
+const DEFAULT_CRP_BASE_URL = 'https:/cmp.api.cmaiot.cn';
+
 /** GPRS 用量（KB）— 文档：`POST /cap/v5/ec/query/sim-data-usage` */
 export const QUERY_SIM_DATA_USAGE_PATH = '/cap/v5/ec/query/sim-data-usage';
+
+/** 批量查询卡信息 — 文档：`POST /crp/v2/ec/query/sim-card-info/batch`，最多 100 张 */
+export const BATCH_QUERY_SIM_CARD_INFO_PATH =
+  '/cmp/v5/ec/query/sim-card-info/batch';
+
+const BATCH_SIM_CARD_MAX_COUNT = 100;
 
 /** SIM 停机原因查询接口 Path（与签名 path 一致） */
 export const SIM_STOP_REASON_PATH = '/cmp/v5/ec/query/sim-stop-reason';
@@ -89,6 +101,28 @@ type SimDataUsageApiEnvelope = {
   data?: SimDataUsagePayload;
 };
 
+export type BatchQuerySimCardInfoParams = {
+  /** 英文逗号分隔 MSISDN，与 iccids、imeis 至少填一类；合计不超过 100 张 */
+  msisdns?: string;
+  iccids?: string;
+  imeis?: string;
+};
+
+export type SimCardInfoBatchItem = {
+  status: string;
+  message: string;
+  msisdn?: string;
+  iccid?: string;
+  imei?: string;
+};
+
+type SimCardInfoBatchApiEnvelope = {
+  traceId: string;
+  code: string;
+  msg: string;
+  data?: SimCardInfoBatchItem[];
+};
+
 @Injectable()
 export class ChinaMobileService {
   private readonly logger = new Logger(ChinaMobileService.name);
@@ -110,7 +144,7 @@ export class ChinaMobileService {
    * `Bearer method=HmacSHA256&sign=<base64_signature>`
    */
   buildAuthorizationHeader(input: ChinaMobileAiotSignInput): string {
-    const sk = CONFIG_SK;
+    const sk = this.config.get<string>(CONFIG_SK);
     if (!sk?.trim()) {
       throw new Error(
         `请在环境变量中配置 ${CONFIG_SK}（AIoT API AccessKey 对应密钥 secretKey）`,
@@ -225,6 +259,124 @@ export class ChinaMobileService {
   private getCapBaseUrl(): string {
     const raw = this.config.get<string>(CONFIG_CAP_BASE_URL)?.trim();
     return raw || DEFAULT_CAP_BASE_URL;
+  }
+
+  private getCrpBaseUrl(): string {
+    const raw = this.config.get<string>(CONFIG_CRP_BASE_URL)?.trim();
+    return raw || DEFAULT_CRP_BASE_URL;
+  }
+
+  private static parseCommaSeparated(raw: string | undefined): string[] {
+    if (!raw?.trim()) return [];
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * 批量查询卡信息（ICCID/IMSI/MSISDN 等），单次最多 100 张。
+   * `POST /crp/v2/ec/query/sim-card-info/batch`
+   */
+  async batchQuerySimCardInfo(
+    params: BatchQuerySimCardInfoParams,
+    at: Date = new Date(),
+  ): Promise<{ traceId: string; msg: string; data: SimCardInfoBatchItem[] }> {
+    const msisdnList = ChinaMobileService.parseCommaSeparated(params.msisdns);
+    const iccidList = ChinaMobileService.parseCommaSeparated(params.iccids);
+    const imeiList = ChinaMobileService.parseCommaSeparated(params.imeis);
+
+    if (
+      msisdnList.length === 0 &&
+      iccidList.length === 0 &&
+      imeiList.length === 0
+    ) {
+      throw new Error(
+        'batchQuerySimCardInfo 需至少提供 msisdns、iccids、imeis 之一（英文逗号分隔）',
+      );
+    }
+
+    const total = msisdnList.length + iccidList.length + imeiList.length;
+    if (total > BATCH_SIM_CARD_MAX_COUNT) {
+      throw new Error(
+        `batchQuerySimCardInfo 单次最多 ${BATCH_SIM_CARD_MAX_COUNT} 张，当前 ${total}`,
+      );
+    }
+
+    // const ec = this.config.get<string>(CONFIG_CRP_EC)?.trim();
+    // if (!ec) {
+    //   throw new Error(
+    //     `请在环境变量中配置 ${CONFIG_CRP_EC}（请求体 API 调用账号 ec）`,
+    //   );
+    // }
+
+    const pub = this.createPublicParams(at);
+    const bodyObject: Record<string, unknown> = {
+      ak: pub.ak,
+      nonce: pub.nonce,
+      timestamp: pub.timestamp,
+    };
+    if (msisdnList.length) bodyObject.msisdns = msisdnList.join(',');
+    if (iccidList.length) bodyObject.iccids = iccidList.join(',');
+    if (imeiList.length) bodyObject.imeis = imeiList.join(',');
+
+    console.log('bodyObject =>', bodyObject);
+
+    const body = JSON.stringify(bodyObject);
+
+    const url = `${this.getCrpBaseUrl()}${BATCH_QUERY_SIM_CARD_INFO_PATH}`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `批量卡信息请求网络/传输异常 url=${url} message=${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new Error(`批量卡信息请求失败（网络）: ${message}`);
+    }
+
+    const text = await res.text();
+    let json: SimCardInfoBatchApiEnvelope;
+    try {
+      json = JSON.parse(text) as SimCardInfoBatchApiEnvelope;
+    } catch {
+      this.logger.error(
+        `批量卡信息接口返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
+      );
+      throw new Error(
+        `批量卡信息接口返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
+      );
+    }
+
+    if (!res.ok) {
+      this.logger.error(
+        `批量卡信息接口 HTTP 错误: status=${res.status}, traceId=${json.traceId ?? '—'}, code=${json.code ?? '—'}, msg=${json.msg ?? text.slice(0, 500)}`,
+      );
+      throw new Error(
+        `批量卡信息接口 HTTP ${res.status}：${json.msg ?? text.slice(0, 200)}`,
+      );
+    }
+
+    if (json.code !== '0') {
+      this.logger.warn(
+        `批量卡信息业务失败: traceId=${json.traceId}, code=${json.code}, msg=${json.msg ?? ''}`,
+      );
+      throw new Error(
+        `批量卡信息接口失败 [${json.code}] ${json.msg ?? ''}`.trim(),
+      );
+    }
+
+    return {
+      traceId: json.traceId,
+      msg: json.msg,
+      data: Array.isArray(json.data) ? json.data : [],
+    };
   }
 
   /**

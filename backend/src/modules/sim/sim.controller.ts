@@ -6,6 +6,8 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { BatchQuerySimCardInfoDto } from './dto/batch-query-sim-card-info.dto';
+import { BatchSimCardInfoQueryResponseDto } from './dto/batch-sim-card-info-response.dto';
 import { QuerySimDataUsageDto } from './dto/query-sim-data-usage.dto';
 import { QuerySimStopReasonDto } from './dto/query-sim-stop-reason.dto';
 import { SimDataUsageQueryResponseDto } from './dto/sim-data-usage-response.dto';
@@ -49,5 +51,23 @@ export class SimController {
   })
   queryDataUsage(@Body() body: QuerySimDataUsageDto) {
     return this.simService.querySimDataUsage(body);
+  }
+
+  @Post('card-info/batch')
+  @ApiOperation({
+    summary: '批量查询 SIM 卡信息',
+    description:
+      '对接移动 CRP `POST /crp/v2/ec/query/sim-card-info/batch`，msisdns / iccids / imeis 至少填一类（英文逗号分隔），单次最多 100 张。',
+  })
+  @ApiBody({ type: BatchQuerySimCardInfoDto })
+  @ApiOkResponse({
+    description: '查询成功（网关 code 为 0）',
+    type: BatchSimCardInfoQueryResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: '参数校验失败，或未提供任一号码列表 / 超过 100 张',
+  })
+  batchQueryCardInfo(@Body() body: BatchQuerySimCardInfoDto) {
+    return this.simService.batchQuerySimCardInfo(body);
   }
 }

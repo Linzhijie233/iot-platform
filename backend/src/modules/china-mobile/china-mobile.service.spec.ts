@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import {
+  BATCH_QUERY_SIM_CARD_INFO_PATH,
   ChinaMobileService,
   QUERY_SIM_DATA_USAGE_PATH,
   SIM_STOP_REASON_PATH,
@@ -26,6 +27,7 @@ describe('ChinaMobileService', () => {
               if (key === 'MOBILE_AIOT_AK') return 'test-ak';
               if (key === 'MOBILE_AIOT_SK') return 'test';
               if (key === 'MOBILE_CAP_BODY_URL') return 'https://example.com/cap';
+              if (key === 'MOBILE_CRP_EC') return 'test-ec';
               return undefined;
             },
           },
@@ -256,6 +258,63 @@ describe('ChinaMobileService', () => {
           url: 'https://example.com/cap',
           nonce: 'n1',
           msisdn: '1475500417',
+        }),
+      }),
+    );
+  });
+
+  it('batchQuerySimCardInfo 未传标识列表时抛错', async () => {
+    await expect(service.batchQuerySimCardInfo({})).rejects.toThrow(/至少提供/);
+  });
+
+  it('batchQuerySimCardInfo 超过 100 张时抛错', async () => {
+    const many = Array.from({ length: 101 }, (_, i) => String(i)).join(',');
+    await expect(
+      service.batchQuerySimCardInfo({ msisdns: many }),
+    ).rejects.toThrow(/最多 100/);
+  });
+
+  it('batchQuerySimCardInfo 成功时返回 data 数组', async () => {
+    jest.spyOn(service, 'createNonce').mockReturnValue('n1');
+    jest.spyOn(service, 'createTimestampSeconds').mockReturnValue('1701203416');
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          traceId: 'tb',
+          code: '0',
+          msg: '成功',
+          data: [
+            {
+              status: '0',
+              message: '查询成功',
+              imei: '8601220392675',
+              msisdn: '13512345678',
+              iccid: '898602B2211439268936',
+            },
+          ],
+        }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const out = await service.batchQuerySimCardInfo({
+      msisdns: '1475500012,1475500013',
+    });
+    expect(out.traceId).toBe('tb');
+    expect(out.data).toHaveLength(1);
+    expect(out.data[0].iccid).toBe('898602B2211439268936');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://cas.api.cmriot.cn${BATCH_QUERY_SIM_CARD_INFO_PATH}`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          timestamp: '1701203416',
+          ec: 'test-ec',
+          nonce: 'n1',
+          msisdns: '1475500012,1475500013',
         }),
       }),
     );

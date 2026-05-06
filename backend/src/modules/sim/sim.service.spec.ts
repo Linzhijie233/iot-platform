@@ -14,6 +14,7 @@ describe('SimService', () => {
           useValue: {
             querySimStopReason: jest.fn(),
             querySimDataUsage: jest.fn(),
+            batchQuerySimCardInfo: jest.fn(),
           },
         },
       ],
