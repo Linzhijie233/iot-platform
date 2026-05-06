@@ -42,12 +42,13 @@ export const ONELINK_GET_TOKEN_PATH = '/v5/ec/get/token';
 export const BATCH_QUERY_SIM_CARD_INFO_PATH =
   '/v5/ec/query/sim-card-info/batch';
 
-const BATCH_SIM_CARD_MAX_COUNT = 100;
+/** 《移动.pdf》5.1.7：单次批量上限（与 Sim DTO 校验一致） */
+export const BATCH_SIM_CARD_MAX_COUNT = 100;
 
 export type BatchQuerySimCardInfoParams = {
   /**
-   * 《移动.pdf》5.1.7：msisdns、iccids、imsis（本字段对应 IMSI 列表）必须有且仅填一类。
-   * 支持英文逗号分隔，将转换为平台要求的下划线分隔。
+   * 入参约束由 HTTP 层 DTO（`BatchQuerySimCardInfoDto`）校验；
+   * 直接调用本方法时需自行保证仅一类有值且条数不超过 BATCH_SIM_CARD_MAX_COUNT。
    */
   msisdns?: string;
   iccids?: string;
@@ -64,12 +65,6 @@ export type SimCardInfoBatchItem = {
   imei?: string;
 };
 
-type OneLinkTokenEnvelope = {
-  status: string;
-  message: string;
-  result?: Array<{ token?: string; ttl?: string }>;
-};
-
 type OneLinkBatchSimCardRow = {
   status: string;
   message: string;
@@ -78,10 +73,11 @@ type OneLinkBatchSimCardRow = {
   iccid?: string;
 };
 
-type OneLinkBatchSimCardEnvelope = {
+/** 《移动.pdf》等接口通用外层：status / message / result */
+type OneLinkBaseEnvelope<T = unknown> = {
   status: string;
   message: string;
-  result?: OneLinkBatchSimCardRow[];
+  result?: T;
 };
 
 @Injectable()
@@ -244,6 +240,61 @@ export class ChinaMobileV2Service {
     return values.join('_');
   }
 
+  /**
+   * OneLink GET：组 URL、请求、解析 JSON，校验 HTTP 与 `status === "0"`。
+   * @param path 以 `/` 开头，如 `/v5/ec/get/token`
+   * @param query query 参数（均为 string，会经 URLSearchParams 编码）
+   * @param context 日志与抛错时的场景前缀，如 `码号批量查询`
+   */
+  private async onelinkGet<T = unknown>(
+    path: string,
+    query: Record<string, string>,
+    context: string,
+  ): Promise<OneLinkBaseEnvelope<T>> {
+    const base = this.getOnelinkBaseUrl();
+    const url = `${base}${path}?${new URLSearchParams(query)}`;
+    let res: Response;
+    try {
+      res = await fetch(url, { method: 'GET' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `${context} 网络异常 url=${url} message=${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new Error(`${context} 失败（网络）：${message}`);
+    }
+    const text = await res.text();
+    let json: OneLinkBaseEnvelope<T>;
+    try {
+      json = JSON.parse(text) as OneLinkBaseEnvelope<T>;
+    } catch {
+      this.logger.error(
+        `${context} 返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
+      );
+      throw new Error(
+        `${context} 返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
+      );
+    }
+    if (!res.ok) {
+      this.logger.error(
+        `${context} HTTP 错误: status=${res.status}, msg=${json.message ?? text.slice(0, 500)}`,
+      );
+      throw new Error(
+        `${context} HTTP ${res.status}：${json.message ?? text.slice(0, 200)}`,
+      );
+    }
+    if (json.status !== '0') {
+      this.logger.warn(
+        `${context} 平台失败: status=${json.status}, msg=${json.message ?? ''}`,
+      );
+      throw new Error(
+        `${context} 失败 [${json.status}] ${json.message ?? ''}`.trim(),
+      );
+    }
+    return json;
+  }
+
   private async fetchOnelinkToken(at: Date): Promise<string> {
     const appid = this.config.get<string>(CONFIG_ONELINK_APPID)?.trim();
     const password = this.config.get<string>(CONFIG_ONELINK_PASSWORD)?.trim();
@@ -256,44 +307,11 @@ export class ChinaMobileV2Service {
       );
     }
     const transid = ChinaMobileV2Service.buildOneLinkTransId(appid, at);
-    const base = this.getOnelinkBaseUrl();
-    const q = new URLSearchParams({
-      appid,
-      password,
-      transid,
-    });
-    const url = `${base}${ONELINK_GET_TOKEN_PATH}?${q}`;
-    let res: Response;
-    try {
-      res = await fetch(url, { method: 'GET' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(
-        `OneLink 获取 token 网络异常 url=${url} message=${message}`,
-        err instanceof Error ? err.stack : undefined,
-      );
-      throw new Error(`OneLink 获取 token 失败（网络）：${message}`);
-    }
-    const text = await res.text();
-    let json: OneLinkTokenEnvelope;
-    try {
-      json = JSON.parse(text) as OneLinkTokenEnvelope;
-    } catch {
-      this.logger.error(
-        `OneLink token 接口返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 500)}`,
-      );
-      throw new Error(`OneLink token 接口返回非 JSON（HTTP ${res.status}）`);
-    }
-    if (!res.ok) {
-      throw new Error(
-        `OneLink token HTTP ${res.status}：${json.message ?? text.slice(0, 200)}`,
-      );
-    }
-    if (json.status !== '0') {
-      throw new Error(
-        `OneLink token 失败 [${json.status}] ${json.message ?? ''}`.trim(),
-      );
-    }
+    const json = await this.onelinkGet<Array<{ token?: string; ttl?: string }>>(
+      ONELINK_GET_TOKEN_PATH,
+      { appid, password, transid },
+      'OneLink 获取 token',
+    );
     const token = json.result?.[0]?.token?.trim();
     if (!token) {
       throw new Error('OneLink token 成功但 result[0].token 为空');
@@ -310,38 +328,15 @@ export class ChinaMobileV2Service {
     params: BatchQuerySimCardInfoParams,
     at: Date = new Date(),
   ): Promise<{ traceId: string; msg: string; data: SimCardInfoBatchItem[] }> {
-    console.log('batchQuerySimCardInfo...');
     const msisdnList = ChinaMobileV2Service.parseList(params.msisdns);
     const iccidList = ChinaMobileV2Service.parseList(params.iccids);
     const imsiList = ChinaMobileV2Service.parseList(params.imeis);
-
-    const filled = [
-      msisdnList.length ? 'msisdns' : '',
-      iccidList.length ? 'iccids' : '',
-      imsiList.length ? 'imsis' : '',
-    ].filter(Boolean);
-    if (filled.length === 0) {
-      throw new Error(
-        'batchQuerySimCardInfo 需且仅需填写 msisdns、iccids、imeis（IMSI）之一',
-      );
-    }
-    if (filled.length > 1) {
-      throw new Error(
-        `《移动.pdf》5.1.7 要求 msisdns、iccids、imsis 有且仅有一项：当前同时包含 ${filled.join('、')}`,
-      );
-    }
-
     const list =
       msisdnList.length > 0
         ? msisdnList
         : iccidList.length > 0
           ? iccidList
           : imsiList;
-    if (list.length > BATCH_SIM_CARD_MAX_COUNT) {
-      throw new Error(
-        `batchQuerySimCardInfo 单次最多 ${BATCH_SIM_CARD_MAX_COUNT} 张，当前 ${list.length}`,
-      );
-    }
 
     const appid = this.config.get<string>(CONFIG_ONELINK_APPID)?.trim();
     if (!appid) {
@@ -351,59 +346,20 @@ export class ChinaMobileV2Service {
     const token = await this.fetchOnelinkToken(at);
     const batchTransid = ChinaMobileV2Service.buildOneLinkTransId(appid, at);
     const batchVal = ChinaMobileV2Service.toOnelinkBatchParam(list);
-    const q = new URLSearchParams({
+    const query: Record<string, string> = {
       transid: batchTransid,
       token,
-    });
-    if (msisdnList.length) q.set('msisdns', batchVal);
-    else if (iccidList.length) q.set('iccids', batchVal);
-    else q.set('imsis', batchVal);
-
-    const base = this.getOnelinkBaseUrl();
-    const url = `${base}${BATCH_QUERY_SIM_CARD_INFO_PATH}?${q}`;
-
-    let res: Response;
-    try {
-      res = await fetch(url, { method: 'GET' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(
-        `码号批量查询网络异常 url=${url} message=${message}`,
-        err instanceof Error ? err.stack : undefined,
-      );
-      throw new Error(`码号批量查询失败（网络）：${message}`);
-    }
-
-    const text = await res.text();
-    let json: OneLinkBatchSimCardEnvelope;
-    try {
-      json = JSON.parse(text) as OneLinkBatchSimCardEnvelope;
-    } catch {
-      this.logger.error(
-        `码号批量查询返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
-      );
-      throw new Error(
-        `码号批量查询返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
-      );
-    }
-
-    if (!res.ok) {
-      this.logger.error(
-        `码号批量查询 HTTP 错误: status=${res.status}, msg=${json.message ?? text.slice(0, 500)}`,
-      );
-      throw new Error(
-        `码号批量查询 HTTP ${res.status}：${json.message ?? text.slice(0, 200)}`,
-      );
-    }
-
-    if (json.status !== '0') {
-      this.logger.warn(
-        `码号批量查询平台失败: status=${json.status}, msg=${json.message ?? ''}`,
-      );
-      throw new Error(
-        `码号批量查询失败 [${json.status}] ${json.message ?? ''}`.trim(),
-      );
-    }
+      ...(msisdnList.length
+        ? { msisdns: batchVal }
+        : iccidList.length
+          ? { iccids: batchVal }
+          : { imsis: batchVal }),
+    };
+    const json = await this.onelinkGet<OneLinkBatchSimCardRow[]>(
+      BATCH_QUERY_SIM_CARD_INFO_PATH,
+      query,
+      '码号批量查询',
+    );
 
     const rows = Array.isArray(json.result) ? json.result : [];
     const data: SimCardInfoBatchItem[] = rows.map((row) => ({
