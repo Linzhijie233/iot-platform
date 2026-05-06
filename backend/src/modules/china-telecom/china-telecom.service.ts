@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 
@@ -12,8 +12,44 @@ export type ChinaTelecomGatewayAuthHeaders = {
 const CONFIG_APP_KEY = 'TELECOM_CMP_APP_KEY';
 const CONFIG_SECRET_KEY = 'TELECOM_CMP_SECRET_KEY';
 
+/** 可选，默认 `https://cmp-api.ctwing.cn:20164`（《电信.pdf》2.1.18） */
+const CONFIG_CMP_BASE_URL = 'TELECOM_CMP_BASE_URL';
+const DEFAULT_CMP_BASE_URL = 'https://cmp-api.ctwing.cn:20164';
+
+/**
+ * CTIOT_5GCMP_BQ018 批量 SIM 卡资料查询
+ * @see `/api/v1/prod/batchQrySimInfo`
+ */
+export const BATCH_QRY_SIM_INFO_PATH = '/api/v1/prod/batchQrySimInfo';
+
+/** 文档：一次最多 100 张 */
+export const BATCH_QRY_SIM_INFO_MAX_ACCESS_NUMBERS = 100;
+
+export type BatchQrySimInfoParams = {
+  custNumber: string;
+  /** 接入号码列表（MSISDN 等），单次 1～100 条 */
+  accessNumbers: string[];
+  groupId?: string;
+  /** 1-可激活 … 6-运营商管理状态；不传则按文档示例送空串 */
+  simStatus?: string;
+};
+
+/** 响应 data.qrySimInfoList 单项（字段以线上为准，此处为文档常见项） */
+export type QrySimInfoItem = Record<string, string | undefined>;
+
+type BatchQrySimInfoApiResponse = {
+  code?: string | number;
+  message?: string;
+  msg?: string;
+  data?: {
+    qrySimInfoList?: QrySimInfoItem[];
+  };
+};
+
 @Injectable()
 export class ChinaTelecomService {
+  private readonly logger = new Logger(ChinaTelecomService.name);
+
   constructor(private readonly config: ConfigService) {}
 
   /**
@@ -72,10 +108,12 @@ export class ChinaTelecomService {
     const hexDigits = '0123456789abcdef';
     let lowerHex = '';
     for (const byte of md) {
-      lowerHex += hexDigits[byte >>> 4 & 0xf];
+      lowerHex += hexDigits[(byte >>> 4) & 0xf];
       lowerHex += hexDigits[byte & 0xf];
     }
-    return ChinaTelecomService.bytesToHex(Buffer.from(lowerHex, 'utf8')).toUpperCase();
+    return ChinaTelecomService.bytesToHex(
+      Buffer.from(lowerHex, 'utf8'),
+    ).toUpperCase();
   }
 
   private static bytesToHex(buf: Buffer): string {
@@ -102,5 +140,108 @@ export class ChinaTelecomService {
     }
     const q = url.search;
     return q.startsWith('?') ? q.slice(1) : q;
+  }
+
+  private getCmpBaseUrl(): string {
+    const raw = this.config.get<string>(CONFIG_CMP_BASE_URL)?.trim();
+    return raw || DEFAULT_CMP_BASE_URL;
+  }
+
+  /**
+   * CTIOT_5GCMP_BQ018 批量 SIM 卡资料查询（POST JSON + 网关 AppKey/Sign/Timestamp）
+   */
+  async batchQrySimInfo(params: BatchQrySimInfoParams): Promise<{
+    code: string;
+    message: string;
+    list: QrySimInfoItem[];
+  }> {
+    const custNumber = params.custNumber?.trim();
+    if (!custNumber) {
+      throw new Error('batchQrySimInfo 需提供 custNumber（客户编码）');
+    }
+    const nums = params.accessNumbers
+      .map((s) => String(s).trim())
+      .filter(Boolean);
+    if (nums.length === 0) {
+      throw new Error('batchQrySimInfo 需提供至少一个 accessNumbers');
+    }
+    if (nums.length > BATCH_QRY_SIM_INFO_MAX_ACCESS_NUMBERS) {
+      throw new Error(
+        `batchQrySimInfo 单次最多 ${BATCH_QRY_SIM_INFO_MAX_ACCESS_NUMBERS} 个接入号，当前 ${nums.length}`,
+      );
+    }
+
+    const bodyObject: Record<string, unknown> = {
+      accessNumbers: nums,
+      custNumber,
+      groupId: params.groupId?.trim() ?? '',
+      simStatus: params.simStatus?.trim() ?? '',
+    };
+    const rawBody = JSON.stringify(bodyObject);
+    const base = this.getCmpBaseUrl().replace(/\/+$/, '');
+    const requestUrl = `${base}${BATCH_QRY_SIM_INFO_PATH}`;
+    const auth = this.createAuthHeaders({ requestUrl, rawBody });
+
+    let res: Response;
+    try {
+      res = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8',
+          AppKey: auth.AppKey,
+          Sign: auth.Sign,
+          Timestamp: auth.Timestamp,
+        },
+        body: rawBody,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `batchQrySimInfo 网络异常 url=${requestUrl} message=${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      throw new Error(`batchQrySimInfo 请求失败（网络）：${message}`);
+    }
+
+    const text = await res.text();
+    let json: BatchQrySimInfoApiResponse;
+    try {
+      json = JSON.parse(text) as BatchQrySimInfoApiResponse;
+    } catch {
+      this.logger.error(
+        `batchQrySimInfo 返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
+      );
+      throw new Error(
+        `batchQrySimInfo 返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
+      );
+    }
+
+    const msg = json.message ?? json.msg ?? '';
+    if (!res.ok) {
+      this.logger.error(
+        `batchQrySimInfo HTTP 错误: status=${res.status}, code=${json.code}, message=${msg || text.slice(0, 400)}`,
+      );
+      throw new Error(
+        `batchQrySimInfo HTTP ${res.status}：${msg || text.slice(0, 200)}`,
+      );
+    }
+
+    const codeStr =
+      json.code !== undefined && json.code !== null ? String(json.code) : '';
+    if (codeStr !== '0') {
+      this.logger.warn(
+        `batchQrySimInfo 业务非成功: code=${codeStr}, message=${msg}`,
+      );
+      throw new Error(`batchQrySimInfo 失败 [${codeStr}] ${msg}`.trim());
+    }
+
+    const rawList = json.data?.qrySimInfoList;
+    const list = Array.isArray(rawList) ? rawList : [];
+
+    return {
+      code: codeStr,
+      message: msg,
+      list,
+    };
   }
 }

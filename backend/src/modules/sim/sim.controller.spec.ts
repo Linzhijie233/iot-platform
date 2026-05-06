@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChinaMobileV2Service } from '../china-mobile-v2/china-mobile-v2.service';
+import { ChinaTelecomService } from '../china-telecom/china-telecom.service';
 import { SimController } from './sim.controller';
 
 describe('SimController', () => {
@@ -13,6 +14,12 @@ describe('SimController', () => {
           provide: ChinaMobileV2Service,
           useValue: {
             batchQuerySimCardInfo: jest.fn(),
+          },
+        },
+        {
+          provide: ChinaTelecomService,
+          useValue: {
+            batchQrySimInfo: jest.fn(),
           },
         },
       ],

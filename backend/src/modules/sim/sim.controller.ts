@@ -7,13 +7,19 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ChinaMobileV2Service } from '../china-mobile-v2/china-mobile-v2.service';
+import { ChinaTelecomService } from '../china-telecom/china-telecom.service';
 import { BatchQuerySimCardInfoDto } from './dto/batch-query-sim-card-info.dto';
 import { BatchQuerySimCardInfoResponseDto } from './dto/batch-query-sim-card-info-response.dto';
+import { BatchTelecomQrySimInfoDto } from './dto/batch-telecom-qry-sim-info.dto';
+import { BatchTelecomQrySimInfoResponseDto } from './dto/batch-telecom-qry-sim-info-response.dto';
 
 @ApiTags('SIM 卡')
 @Controller('sim')
 export class SimController {
-  constructor(private readonly chinaMobileV2: ChinaMobileV2Service) {}
+  constructor(
+    private readonly chinaMobileV2: ChinaMobileV2Service,
+    private readonly chinaTelecom: ChinaTelecomService,
+  ) {}
 
   @Post('card-info/batch')
   @ApiOperation({
@@ -34,6 +40,29 @@ export class SimController {
       msisdns: body.msisdns,
       iccids: body.iccids,
       imeis: body.imeis,
+    });
+  }
+
+  @Post('telecom/card-info/batch')
+  @ApiOperation({
+    summary: '电信：批量查询 SIM 卡资料',
+    description:
+      '对接 `ChinaTelecomService.batchQrySimInfo`：5G 连接管理平台 CTIOT_5GCMP_BQ018，`POST /api/v1/prod/batchQrySimInfo`（accessNumbers + custNumber，网关 AppKey/Sign/Timestamp）。',
+  })
+  @ApiBody({ type: BatchTelecomQrySimInfoDto })
+  @ApiOkResponse({
+    description: '电信 code 为字符串 0',
+    type: BatchTelecomQrySimInfoResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: '参数校验失败（接入号数量、必填项等）',
+  })
+  batchTelecomQrySimInfo(@Body() body: BatchTelecomQrySimInfoDto) {
+    return this.chinaTelecom.batchQrySimInfo({
+      custNumber: body.custNumber,
+      accessNumbers: body.accessNumbers,
+      groupId: body.groupId,
+      simStatus: body.simStatus,
     });
   }
 }

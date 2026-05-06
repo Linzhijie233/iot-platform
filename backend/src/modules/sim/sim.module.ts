@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ChinaMobileV2Module } from '../china-mobile-v2/china-mobile-v2.module';
+import { ChinaTelecomModule } from '../china-telecom/china-telecom.module';
 import { SimController } from './sim.controller';
 
 @Module({
-  imports: [ChinaMobileV2Module],
+  imports: [ChinaMobileV2Module, ChinaTelecomModule],
   controllers: [SimController],
 })
 export class SimModule {}
