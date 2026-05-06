@@ -6,9 +6,8 @@ import { AppService } from './app.service';
 import { UserModule } from './modules/user/user.module';
 import { ChinaTelecomModule } from './modules/china-telecom/china-telecom.module';
 import { ChinaUnicomModule } from './modules/china-unicom/china-unicom.module';
-import { ChinaMobileModule } from './modules/china-mobile/china-mobile.module';
 import { SimModule } from './modules/sim/sim.module';
-import { ChinaMobileV2Module } from './modules/china-mobile-v2/china-mobile-v2.module';
+import { ChinaMobileModule } from './modules/china-mobile/china-mobile.module';
 
 @Module({
   imports: [
@@ -22,9 +21,8 @@ import { ChinaMobileV2Module } from './modules/china-mobile-v2/china-mobile-v2.m
     UserModule,
     ChinaTelecomModule,
     ChinaUnicomModule,
-    ChinaMobileModule,
     SimModule,
-    ChinaMobileV2Module,
+    ChinaMobileModule,
   ],
   controllers: [AppController],
   providers: [AppService],

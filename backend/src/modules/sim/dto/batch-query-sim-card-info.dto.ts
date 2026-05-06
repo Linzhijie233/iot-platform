@@ -9,7 +9,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-import { BATCH_SIM_CARD_MAX_COUNT } from '../../china-mobile-v2/china-mobile-v2.service';
+import { BATCH_SIM_CARD_MAX_COUNT } from '../../china-mobile/china-mobile.service';
 
 function parseBatchList(raw: string | undefined): string[] {
   if (!raw?.trim()) return [];
@@ -19,7 +19,7 @@ function parseBatchList(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
-/** 与 ChinaMobileV2Service.batchQuerySimCardInfo 入参规则一致：三选一、1～N 张 */
+/** 与 ChinaMobileService.batchQuerySimCardInfo 入参规则一致：三选一、1～N 张 */
 @ValidatorConstraint({ name: 'batchQuerySimCardInfoRules', async: false })
 export class BatchQuerySimCardInfoRulesConstraint implements ValidatorConstraintInterface {
   validate(_: unknown, args: ValidationArguments) {

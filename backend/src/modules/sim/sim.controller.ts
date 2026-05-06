@@ -6,7 +6,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { ChinaMobileV2Service } from '../china-mobile-v2/china-mobile-v2.service';
+import { ChinaMobileService } from '../china-mobile/china-mobile.service';
 import { ChinaTelecomService } from '../china-telecom/china-telecom.service';
 import { BatchQuerySimCardInfoDto } from './dto/batch-query-sim-card-info.dto';
 import { BatchQuerySimCardInfoResponseDto } from './dto/batch-query-sim-card-info-response.dto';
@@ -17,7 +17,7 @@ import { BatchTelecomQrySimInfoResponseDto } from './dto/batch-telecom-qry-sim-i
 @Controller('sim')
 export class SimController {
   constructor(
-    private readonly chinaMobileV2: ChinaMobileV2Service,
+    private readonly chinaMobile: ChinaMobileService,
     private readonly chinaTelecom: ChinaTelecomService,
   ) {}
 
@@ -25,7 +25,7 @@ export class SimController {
   @ApiOperation({
     summary: '批量查询码号信息',
     description:
-      '对接 `ChinaMobileV2Service.batchQuerySimCardInfo`：OneLink《移动.pdf》5.1.7（GET transid+token，msisdns / iccids / imsis 三选一，多值英文逗号入参将转为下划线）。',
+      '对接 `ChinaMobileService.batchQuerySimCardInfo`：OneLink《移动.pdf》5.1.7（GET transid+token，msisdns / iccids / imsis 三选一，多值英文逗号入参将转为下划线）。',
   })
   @ApiBody({ type: BatchQuerySimCardInfoDto })
   @ApiOkResponse({
@@ -36,7 +36,7 @@ export class SimController {
     description: '参数校验失败（未三选一、或超限等）',
   })
   batchQueryCardInfo(@Body() body: BatchQuerySimCardInfoDto) {
-    return this.chinaMobileV2.batchQuerySimCardInfo({
+    return this.chinaMobile.batchQuerySimCardInfo({
       msisdns: body.msisdns,
       iccids: body.iccids,
       imeis: body.imeis,
