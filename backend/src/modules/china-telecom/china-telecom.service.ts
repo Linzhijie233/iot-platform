@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChinaTelecomGatewayService } from './china-telecom-gateway.service';
 import type {
@@ -45,16 +49,18 @@ export class ChinaTelecomService {
       params.custNumber?.trim() ||
       this.config.get<string>('TELECOM_CUST_NUMBER')?.trim();
     if (!custNumber) {
-      throw new Error('batchQrySimInfo 需提供 custNumber（客户编码）');
+      throw new BadRequestException(
+        'batchQrySimInfo 需提供 custNumber（客户编码）',
+      );
     }
     const nums = params.accessNumbers
       .map((s) => String(s).trim())
       .filter(Boolean);
     if (nums.length === 0) {
-      throw new Error('batchQrySimInfo 需提供至少一个 accessNumbers');
+      throw new BadRequestException('batchQrySimInfo 需提供至少一个 accessNumbers');
     }
     if (nums.length > BATCH_QRY_SIM_INFO_MAX_ACCESS_NUMBERS) {
-      throw new Error(
+      throw new BadRequestException(
         `batchQrySimInfo 单次最多 ${BATCH_QRY_SIM_INFO_MAX_ACCESS_NUMBERS} 个接入号，当前 ${nums.length}`,
       );
     }
@@ -75,15 +81,8 @@ export class ChinaTelecomService {
     });
 
     const msg = json.message ?? json.msg ?? '';
-
     const codeStr =
-      json.code !== undefined && json.code !== null ? String(json.code) : '';
-    if (codeStr !== '0') {
-      this.logger.warn(
-        `batchQrySimInfo 业务非成功: code=${codeStr}, message=${msg}`,
-      );
-      throw new Error(`batchQrySimInfo 失败 [${codeStr}] ${msg}`.trim());
-    }
+      json.code !== undefined && json.code !== null ? String(json.code) : '0';
 
     const rawList = json.data?.qrySimInfoList;
     const list = Array.isArray(rawList) ? rawList : [];

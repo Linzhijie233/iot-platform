@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import type { HttpGatewayJsonRequestInput } from '../../http-gateway-request.types';
@@ -30,6 +35,7 @@ export class ChinaTelecomGatewayService {
   /**
    * 带网关签名的 JSON 调用：`url` 含 path/query 参与签名；默认 POST。
    * 签名 = 排序后 query + rawBody + secret + timestamp（GET/HEAD 一般用 `rawBody` 不传或 `''`）。
+   * HTTP 成功后校验业务 `code === "0"`（与移动 OneLink `status === "0"` 对齐）。
    */
   async request<T = unknown>(input: HttpGatewayJsonRequestInput): Promise<T> {
     const method = input.method ?? 'POST';
@@ -69,7 +75,9 @@ export class ChinaTelecomGatewayService {
         `${input.operationLabel} 网络异常 method=${method} url=${input.url} message=${message}`,
         err instanceof Error ? err.stack : undefined,
       );
-      throw new Error(`${input.operationLabel} 失败（网络）：${message}`);
+      throw new BadGatewayException(
+        `${input.operationLabel} 失败（网络）：${message}`,
+      );
     }
 
     const text = await res.text();
@@ -80,31 +88,32 @@ export class ChinaTelecomGatewayService {
       this.logger.error(
         `${input.operationLabel} 返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
       );
-      throw new Error(
+      throw new BadGatewayException(
         `${input.operationLabel} 返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
       );
     }
 
     const envelope = json as { code?: unknown; message?: string; msg?: string };
     const msg = envelope.message ?? envelope.msg ?? '';
-    const codeForLog = (() => {
-      const c = envelope.code;
-      if (c === undefined || c === null) return '';
-      if (typeof c === 'string') return c;
-      if (
-        typeof c === 'number' ||
-        typeof c === 'boolean' ||
-        typeof c === 'bigint'
-      )
-        return String(c);
-      return JSON.stringify(c);
-    })();
     if (!res.ok) {
       this.logger.error(
-        `${input.operationLabel} HTTP 错误: status=${res.status}, code=${codeForLog}, message=${msg || text.slice(0, 400)}`,
+        `${input.operationLabel} HTTP 错误: status=${res.status}, msg=${msg || text.slice(0, 500)}`,
       );
-      throw new Error(
+      throw new BadGatewayException(
         `${input.operationLabel} HTTP ${res.status}：${msg || text.slice(0, 200)}`,
+      );
+    }
+
+    const codeStr =
+      envelope.code !== undefined && envelope.code !== null
+        ? String(envelope.code)
+        : '';
+    if (codeStr !== '0') {
+      this.logger.warn(
+        `${input.operationLabel} 平台失败: code=${codeStr}, msg=${msg}`,
+      );
+      throw new BadGatewayException(
+        `${input.operationLabel} 失败 [${codeStr}] ${msg}`.trim(),
       );
     }
 
@@ -123,7 +132,7 @@ export class ChinaTelecomGatewayService {
     const appKey = this.config.get<string>(TELECOM_CMP_APP_KEY_ENV);
     const secretKey = this.config.get<string>(TELECOM_CMP_SECRET_KEY_ENV);
     if (!appKey?.trim() || !secretKey?.trim()) {
-      throw new Error(
+      throw new InternalServerErrorException(
         `请在环境变量中配置 ${TELECOM_CMP_APP_KEY_ENV} 与 ${TELECOM_CMP_SECRET_KEY_ENV}（5G 连接管理平台—能力开放—API 网关账号管理）`,
       );
     }
@@ -150,7 +159,9 @@ export class ChinaTelecomGatewayService {
       if (segment === '') continue;
       const eq = segment.indexOf('=');
       if (eq === -1) {
-        throw new Error('URL 参数不规范：缺少 =');
+        throw new InternalServerErrorException(
+          'URL 参数不规范：缺少 =',
+        );
       }
       pairs.push([segment.slice(0, eq), segment.slice(eq + 1)]);
     }
@@ -195,7 +206,9 @@ export class ChinaTelecomGatewayService {
     try {
       url = new URL(requestUrl);
     } catch {
-      throw new Error(`无效的 requestUrl: ${requestUrl}`);
+      throw new InternalServerErrorException(
+        `无效的 requestUrl: ${requestUrl}`,
+      );
     }
     const q = url.search;
     return q.startsWith('?') ? q.slice(1) : q;

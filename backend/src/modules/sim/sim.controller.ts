@@ -21,9 +21,9 @@ export class SimController {
     private readonly chinaTelecom: ChinaTelecomService,
   ) {}
 
-  @Post('card-info/batch')
+  @Post('mobile/card-info/batch')
   @ApiOperation({
-    summary: '批量查询码号信息',
+    summary: '移动：批量查询码号信息',
     description:
       '对接 `ChinaMobileService.batchQuerySimCardInfo`：OneLink《移动.pdf》5.1.7（GET transid+token，msisdns / iccids / imsis 三选一，多值英文逗号入参将转为下划线）。',
   })

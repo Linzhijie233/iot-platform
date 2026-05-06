@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { HttpGatewayJsonRequestInput } from '../../http-gateway-request.types';
 
@@ -88,7 +93,9 @@ export class ChinaMobileGatewayService {
         `${input.operationLabel} 网络异常 method=${method} url=${input.url} message=${message}`,
         err instanceof Error ? err.stack : undefined,
       );
-      throw new Error(`${input.operationLabel} 失败（网络）：${message}`);
+      throw new BadGatewayException(
+        `${input.operationLabel} 失败（网络）：${message}`,
+      );
     }
     const text = await res.text();
     let json: OneLinkBaseEnvelope<T>;
@@ -98,7 +105,7 @@ export class ChinaMobileGatewayService {
       this.logger.error(
         `${input.operationLabel} 返回非 JSON: HTTP ${res.status}, body=${text.slice(0, 800)}`,
       );
-      throw new Error(
+      throw new BadGatewayException(
         `${input.operationLabel} 返回非 JSON（HTTP ${res.status}）：${text.slice(0, 200)}`,
       );
     }
@@ -106,7 +113,7 @@ export class ChinaMobileGatewayService {
       this.logger.error(
         `${input.operationLabel} HTTP 错误: status=${res.status}, msg=${json.message ?? text.slice(0, 500)}`,
       );
-      throw new Error(
+      throw new BadGatewayException(
         `${input.operationLabel} HTTP ${res.status}：${json.message ?? text.slice(0, 200)}`,
       );
     }
@@ -114,7 +121,7 @@ export class ChinaMobileGatewayService {
       this.logger.warn(
         `${input.operationLabel} 平台失败: status=${json.status}, msg=${json.message ?? ''}`,
       );
-      throw new Error(
+      throw new BadGatewayException(
         `${input.operationLabel} 失败 [${json.status}] ${json.message ?? ''}`.trim(),
       );
     }
@@ -143,7 +150,9 @@ export class ChinaMobileGatewayService {
     });
     const token = json.result?.[0]?.token?.trim();
     if (!token) {
-      throw new Error('OneLink token 成功但 result[0].token 为空');
+      throw new BadGatewayException(
+        'OneLink token 成功但 result[0].token 为空',
+      );
     }
     return token;
   }
@@ -173,7 +182,7 @@ export class ChinaMobileGatewayService {
         .get<string>(MOBILE_ONELINK_SANDBOX_BASE_URL_ENV)
         ?.trim();
       if (raw) return raw;
-      throw new Error(
+      throw new InternalServerErrorException(
         `已启用 OneLink 沙箱（${MOBILE_ONELINK_USE_SANDBOX_ENV}=true），请配置 ${MOBILE_ONELINK_SANDBOX_BASE_URL_ENV}`,
       );
     }
@@ -188,7 +197,7 @@ export class ChinaMobileGatewayService {
       : MOBILE_ONELINK_APPID_ENV;
     const appid = this.config.get<string>(key)?.trim();
     if (!appid) {
-      throw new Error(
+      throw new InternalServerErrorException(
         `请配置 ${key}（OneLink 接入 appid${sandbox ? '，沙箱' : ''}）`,
       );
     }
@@ -202,7 +211,7 @@ export class ChinaMobileGatewayService {
       : MOBILE_ONELINK_PASSWORD_ENV;
     const password = this.config.get<string>(key)?.trim();
     if (!password) {
-      throw new Error(
+      throw new InternalServerErrorException(
         `请配置 ${key}（OneLink 接入 password${sandbox ? '，沙箱' : ''}）`,
       );
     }

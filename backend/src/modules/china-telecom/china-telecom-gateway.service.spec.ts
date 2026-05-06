@@ -77,19 +77,19 @@ describe('ChinaTelecomGatewayService', () => {
     jest.setSystemTime(new Date('2020-11-01T02:14:35.000Z'));
 
     const spy = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ ok: true }), {
+      new Response(JSON.stringify({ code: '0', ok: true }), {
         status: 200,
         statusText: 'OK',
       }),
     );
 
-    const data = await service.request<{ ok: boolean }>({
+    const data = await service.request<{ ok: boolean; code: string }>({
       url: 'https://cmp-api.ctwing.cn:20164/api/v1/prod/test',
       rawBody: '{}',
       operationLabel: 'testOp',
     });
 
-    expect(data).toEqual({ ok: true });
+    expect(data).toEqual({ code: '0', ok: true });
     expect(spy).toHaveBeenCalledTimes(1);
     const [, init] = spy.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('POST');
@@ -109,10 +109,10 @@ describe('ChinaTelecomGatewayService', () => {
     const spy = jest
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ x: 1 }), { status: 200 }),
+        new Response(JSON.stringify({ code: '0', x: 1 }), { status: 200 }),
       );
 
-    await service.request<{ x: number }>({
+    await service.request<{ x: number; code: string }>({
       url: 'https://cmp-api.ctwing.cn:20164/api/v1/open?b=2&a=1',
       operationLabel: 'getOp',
       method: 'GET',
@@ -172,5 +172,27 @@ describe('ChinaTelecomGatewayService', () => {
       }),
     ).rejects.toThrow(/httpErr HTTP 503：nope/);
     spy.mockRestore();
+  });
+
+  it('request HTTP 200 但业务 code 非 0 抛出错误', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2020-11-01T02:14:35.000Z'));
+
+    const spy = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ code: '1001', message: 'biz fail' }),
+        { status: 200 },
+      ),
+    );
+    await expect(
+      service.request({
+        url: 'https://cmp-api.ctwing.cn:20164/api/v1/prod/x',
+        rawBody: '{}',
+        operationLabel: 'bizOp',
+      }),
+    ).rejects.toThrow(/bizOp 失败 \[1001\] biz fail/);
+
+    spy.mockRestore();
+    jest.useRealTimers();
   });
 });
