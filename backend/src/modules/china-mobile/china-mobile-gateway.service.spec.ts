@@ -18,14 +18,23 @@ describe('ChinaMobileGatewayService', () => {
       ],
     }).compile();
 
-    service = module.get<ChinaMobileGatewayService>(ChinaMobileGatewayService);
+    service = module.get<ChinaMobileGatewayService>(
+      ChinaMobileGatewayService,
+    );
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  it('onelinkGetJson GET 成功（mock fetch）', async () => {
+  it('resolveOnelinkUrl 拼接 base 与 query', () => {
+    const u = service.resolveOnelinkUrl('/v5/x', { a: '1', b: '2' });
+    expect(u.startsWith('https://api.iot.10086.cn/v5/x')).toBe(true);
+    expect(u).toContain('a=1');
+    expect(u).toContain('b=2');
+  });
+
+  it('request GET 成功（mock fetch）', async () => {
     const spy = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -37,35 +46,37 @@ describe('ChinaMobileGatewayService', () => {
       ),
     );
 
-    const json = await service.onelinkGetJson<
+    const url = service.resolveOnelinkUrl('/v5/ec/get/token', {
+      appid: 'x',
+      password: 'y',
+      transid: 'z',
+    });
+    const json = await service.request<
       Array<{ token?: string; ttl?: string }>
-    >(
-      '/v5/ec/get/token',
-      { appid: 'x', password: 'y', transid: 'z' },
-      '测试 token',
-    );
+    >({
+      url,
+      operationLabel: '测试 token',
+      method: 'GET',
+    });
 
     expect(json.result?.[0]?.token).toBe('t1');
     expect(spy).toHaveBeenCalledTimes(1);
-    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain('/v5/ec/get/token');
+    const [, init] = spy.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('GET');
 
     spy.mockRestore();
   });
 
-  it('onelinkRequestJson POST 含 body（mock fetch）', async () => {
-    const spy = jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ status: '0', message: 'OK', result: {} }),
-          { status: 200 },
-        ),
-      );
+  it('request POST 含 body（mock fetch）', async () => {
+    const spy = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ status: '0', message: 'OK', result: {} }),
+        { status: 200 },
+      ),
+    );
 
-    await service.onelinkRequestJson({
-      path: '/v5/ec/mock',
+    await service.request({
+      url: 'https://api.iot.10086.cn/v5/ec/mock',
       operationLabel: 'postOp',
       method: 'POST',
       rawBody: '{"x":1}',

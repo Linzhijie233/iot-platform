@@ -72,7 +72,7 @@ describe('ChinaTelecomGatewayService', () => {
     jest.useRealTimers();
   });
 
-  it('postJsonAuthenticated 成功返回解析后的 JSON（mock fetch）', async () => {
+  it('request POST JSON 成功（mock fetch）', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2020-11-01T02:14:35.000Z'));
 
@@ -83,8 +83,8 @@ describe('ChinaTelecomGatewayService', () => {
       }),
     );
 
-    const data = await service.postJsonAuthenticated<{ ok: boolean }>({
-      requestUrl: 'https://cmp-api.ctwing.cn:20164/api/v1/prod/test',
+    const data = await service.request<{ ok: boolean }>({
+      url: 'https://cmp-api.ctwing.cn:20164/api/v1/prod/test',
       rawBody: '{}',
       operationLabel: 'testOp',
     });
@@ -102,7 +102,7 @@ describe('ChinaTelecomGatewayService', () => {
     jest.useRealTimers();
   });
 
-  it('requestJsonAuthenticated GET 无 body、不加 Content-Type（mock fetch）', async () => {
+  it('request GET 无 body、不加 Content-Type（mock fetch）', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2020-11-01T02:14:35.000Z'));
 
@@ -112,8 +112,8 @@ describe('ChinaTelecomGatewayService', () => {
         new Response(JSON.stringify({ x: 1 }), { status: 200 }),
       );
 
-    await service.requestJsonAuthenticated<{ x: number }>({
-      requestUrl: 'https://cmp-api.ctwing.cn:20164/api/v1/open?b=2&a=1',
+    await service.request<{ x: number }>({
+      url: 'https://cmp-api.ctwing.cn:20164/api/v1/open?b=2&a=1',
       operationLabel: 'getOp',
       method: 'GET',
       rawBody: '',
@@ -130,27 +130,27 @@ describe('ChinaTelecomGatewayService', () => {
     jest.useRealTimers();
   });
 
-  it('postJsonAuthenticated 网络异常抛出带 operationLabel 的错误', async () => {
+  it('request 网络异常抛出带 operationLabel 的错误', async () => {
     const spy = jest
       .spyOn(globalThis, 'fetch')
       .mockRejectedValueOnce(new Error('boom'));
     await expect(
-      service.postJsonAuthenticated({
-        requestUrl: 'https://cmp-api.ctwing.cn:20164/x',
+      service.request({
+        url: 'https://cmp-api.ctwing.cn:20164/x',
         rawBody: '{}',
         operationLabel: 'myLabel',
       }),
-    ).rejects.toThrow(/myLabel 请求失败（网络）：boom/);
+    ).rejects.toThrow(/myLabel 失败（网络）：boom/);
     spy.mockRestore();
   });
 
-  it('postJsonAuthenticated 非 JSON 响应抛出错误', async () => {
+  it('request 非 JSON 响应抛出错误', async () => {
     const spy = jest
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('not-json', { status: 200 }));
     await expect(
-      service.postJsonAuthenticated({
-        requestUrl: 'https://cmp-api.ctwing.cn:20164/x',
+      service.request({
+        url: 'https://cmp-api.ctwing.cn:20164/x',
         rawBody: '{}',
         operationLabel: 'badJson',
       }),
@@ -158,15 +158,15 @@ describe('ChinaTelecomGatewayService', () => {
     spy.mockRestore();
   });
 
-  it('postJsonAuthenticated HTTP 非 2xx 抛出错误', async () => {
+  it('request HTTP 非 2xx 抛出错误', async () => {
     const spy = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ message: 'nope', code: '500' }), {
         status: 503,
       }),
     );
     await expect(
-      service.postJsonAuthenticated({
-        requestUrl: 'https://cmp-api.ctwing.cn:20164/x',
+      service.request({
+        url: 'https://cmp-api.ctwing.cn:20164/x',
         rawBody: '{}',
         operationLabel: 'httpErr',
       }),

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
+import type { HttpGatewayJsonRequestInput } from '../../http-gateway-request.types';
 
 /** 天翼物联 5GCMP 统一 API 网关鉴权请求头（文档 1.2.3 / 1.2.3.1） */
 export type ChinaTelecomGatewayHeaders = {
@@ -14,14 +15,10 @@ export const TELECOM_CMP_APP_KEY_ENV = 'TELECOM_CMP_APP_KEY';
 /** `ConfigService.get` / 环境变量名 */
 export const TELECOM_CMP_SECRET_KEY_ENV = 'TELECOM_CMP_SECRET_KEY';
 
-/** 电信 CMP HTTP 网关支持的调用方式（按文档通常为 POST JSON；少数接口可能为 GET 等） */
-export type ChinaTelecomGatewayHttpMethod =
-  | 'GET'
-  | 'HEAD'
-  | 'POST'
-  | 'PUT'
-  | 'PATCH'
-  | 'DELETE';
+export type {
+  HttpGatewayJsonRequestInput,
+  HttpGatewayMethod,
+} from '../../http-gateway-request.types';
 
 /** 电信 CMP HTTP 网关：签名、鉴权请求、统一错误处理 */
 @Injectable()
@@ -31,28 +28,14 @@ export class ChinaTelecomGatewayService {
   constructor(private readonly config: ConfigService) {}
 
   /**
-   * 带网关签名的 JSON 调用：可指定 HTTP 方法，统一处理网络异常、非 JSON、HTTP 非 2xx。
-   * 签名仍为「排序后的 query + rawBody + secret + timestamp」（GET/HEAD 请传 `rawBody: ''`）。
+   * 带网关签名的 JSON 调用：`url` 含 path/query 参与签名；默认 POST。
+   * 签名 = 排序后 query + rawBody + secret + timestamp（GET/HEAD 一般用 `rawBody` 不传或 `''`）。
    */
-  async requestJsonAuthenticated<T = unknown>(input: {
-    requestUrl: string;
-    /** 日志与错误信息前缀，如 batchQrySimInfo */
-    operationLabel: string;
-    method?: ChinaTelecomGatewayHttpMethod;
-    /** 参与签名的正文；GET/HEAD 一般为 `''`。有内容时仅在非 GET/HEAD 时作为 fetch body 发送 */
-    rawBody?: string;
-    /**
-     * 有 body 时默认 `application/json;charset=utf-8`；
-     * 传 `false` 表示不设置 Content-Type（罕见接口需要时再用）
-     */
-    contentType?: string | false;
-    /** 附加请求头（不要覆盖 AppKey/Sign/Timestamp） */
-    extraHeaders?: Record<string, string>;
-  }): Promise<T> {
+  async request<T = unknown>(input: HttpGatewayJsonRequestInput): Promise<T> {
     const method = input.method ?? 'POST';
     const rawBody = input.rawBody ?? '';
     const auth = this.createAuthHeaders({
-      requestUrl: input.requestUrl,
+      requestUrl: input.url,
       rawBody,
     });
 
@@ -75,7 +58,7 @@ export class ChinaTelecomGatewayService {
 
     let res: Response;
     try {
-      res = await fetch(input.requestUrl, {
+      res = await fetch(input.url, {
         method,
         headers,
         ...(sendsBody ? { body: rawBody } : {}),
@@ -83,10 +66,10 @@ export class ChinaTelecomGatewayService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `${input.operationLabel} 网络异常 method=${method} url=${input.requestUrl} message=${message}`,
+        `${input.operationLabel} 网络异常 method=${method} url=${input.url} message=${message}`,
         err instanceof Error ? err.stack : undefined,
       );
-      throw new Error(`${input.operationLabel} 请求失败（网络）：${message}`);
+      throw new Error(`${input.operationLabel} 失败（网络）：${message}`);
     }
 
     const text = await res.text();
@@ -126,20 +109,6 @@ export class ChinaTelecomGatewayService {
     }
 
     return json;
-  }
-
-  /** POST JSON，`rawBody` 参与签名并列在请求体（最常用）。 */
-  postJsonAuthenticated<T = unknown>(input: {
-    requestUrl: string;
-    rawBody: string;
-    operationLabel: string;
-    contentType?: string | false;
-    extraHeaders?: Record<string, string>;
-  }): Promise<T> {
-    return this.requestJsonAuthenticated<T>({
-      ...input,
-      method: 'POST',
-    });
   }
 
   /**

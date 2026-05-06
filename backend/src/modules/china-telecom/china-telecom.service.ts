@@ -68,12 +68,11 @@ export class ChinaTelecomService {
     const rawBody = JSON.stringify(bodyObject);
     const base = this.getCmpBaseUrl().replace(/\/+$/, '');
     const requestUrl = `${base}${BATCH_QRY_SIM_INFO_PATH}`;
-    const json =
-      await this.gateway.postJsonAuthenticated<BatchQrySimInfoApiResponse>({
-        requestUrl,
-        rawBody,
-        operationLabel: 'batchQrySimInfo',
-      });
+    const json = await this.gateway.request<BatchQrySimInfoApiResponse>({
+      url: requestUrl,
+      rawBody,
+      operationLabel: 'batchQrySimInfo',
+    });
 
     const msg = json.message ?? json.msg ?? '';
 

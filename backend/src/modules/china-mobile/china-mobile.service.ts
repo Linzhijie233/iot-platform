@@ -68,11 +68,14 @@ export class ChinaMobileService {
           ? { iccids: batchVal }
           : { imsis: batchVal }),
     };
-    const json = await this.gateway.onelinkGetJson<OneLinkBatchSimCardRow[]>(
-      BATCH_QUERY_SIM_CARD_INFO_PATH,
-      query,
-      '码号批量查询',
-    );
+    const json = await this.gateway.request<OneLinkBatchSimCardRow[]>({
+      url: this.gateway.resolveOnelinkUrl(
+        BATCH_QUERY_SIM_CARD_INFO_PATH,
+        query,
+      ),
+      operationLabel: '码号批量查询',
+      method: 'GET',
+    });
 
     const rows = Array.isArray(json.result) ? json.result : [];
     const data: SimCardInfoBatchItem[] = rows.map((row) => ({

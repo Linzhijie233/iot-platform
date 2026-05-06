@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { HttpGatewayJsonRequestInput } from '../../http-gateway-request.types';
 
 export const MOBILE_ONELINK_USE_SANDBOX_ENV = 'MOBILE_ONELINK_USE_SANDBOX';
 
@@ -28,15 +29,12 @@ export type OneLinkBaseEnvelope<T = unknown> = {
   result?: T;
 };
 
-export type ChinaMobileOneLinkHttpMethod =
-  | 'GET'
-  | 'HEAD'
-  | 'POST'
-  | 'PUT'
-  | 'PATCH'
-  | 'DELETE';
+export type {
+  HttpGatewayJsonRequestInput,
+  HttpGatewayMethod,
+} from '../../http-gateway-request.types';
 
-/** OneLink 网关：`fetch` + JSON 响应，支持多 HTTP 方法 */
+/** OneLink：`fetch` + JSON，与电信网关对齐 `request()` 入参；默认 GET */
 @Injectable()
 export class ChinaMobileGatewayService {
   private readonly logger = new Logger(ChinaMobileGatewayService.name);
@@ -44,23 +42,24 @@ export class ChinaMobileGatewayService {
   constructor(private readonly config: ConfigService) {}
 
   /**
-   * OneLink 调用：组 URL（可选 query）、`fetch`、解析 JSON，校验 HTTP 与 `status === "0"`。
-   * GET/HEAD **不发送 body**；其余方法在 `rawBody` 非空时带 body，默认 `Content-Type: application/json;charset=utf-8`。
+   * 将配置中的 OneLink base 与 path、query 组成完整 `url`（供 `request()` 使用）。
    */
-  async onelinkRequestJson<T = unknown>(input: {
-    path: string;
-    operationLabel: string;
-    method?: ChinaMobileOneLinkHttpMethod;
-    query?: Record<string, string>;
-    rawBody?: string;
-    contentType?: string | false;
-    extraHeaders?: Record<string, string>;
-  }): Promise<OneLinkBaseEnvelope<T>> {
-    const method = input.method ?? 'GET';
-    const base = this.getOnelinkBaseUrl();
-    const q = input.query ?? {};
+  resolveOnelinkUrl(path: string, query?: Record<string, string>): string {
+    const base = this.getOnelinkBaseUrl().replace(/\/+$/, '');
+    const p = path.startsWith('/') ? path : `/${path}`;
+    const q = query ?? {};
     const qs = new URLSearchParams(q).toString();
-    const url = qs ? `${base}${input.path}?${qs}` : `${base}${input.path}`;
+    return qs ? `${base}${p}?${qs}` : `${base}${p}`;
+  }
+
+  /**
+   * OneLink JSON 调用：校验 HTTP 与业务 `status === "0"`。
+   * GET/HEAD 不发送 body；其余方法在 `rawBody` 非空时带 body。
+   */
+  async request<T = unknown>(
+    input: HttpGatewayJsonRequestInput,
+  ): Promise<OneLinkBaseEnvelope<T>> {
+    const method = input.method ?? 'GET';
 
     const headers: Record<string, string> = {
       ...(input.extraHeaders ?? {}),
@@ -78,7 +77,7 @@ export class ChinaMobileGatewayService {
 
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await fetch(input.url, {
         method,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
         ...(sendsBody ? { body: input.rawBody as string } : {}),
@@ -86,7 +85,7 @@ export class ChinaMobileGatewayService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `${input.operationLabel} 网络异常 method=${method} url=${url} message=${message}`,
+        `${input.operationLabel} 网络异常 method=${method} url=${input.url} message=${message}`,
         err instanceof Error ? err.stack : undefined,
       );
       throw new Error(`${input.operationLabel} 失败（网络）：${message}`);
@@ -122,20 +121,6 @@ export class ChinaMobileGatewayService {
     return json;
   }
 
-  /** GET + query，等价于 `onelinkRequestJson({ method: 'GET', ... })`。 */
-  async onelinkGetJson<T = unknown>(
-    path: string,
-    query: Record<string, string>,
-    operationLabel: string,
-  ): Promise<OneLinkBaseEnvelope<T>> {
-    return this.onelinkRequestJson<T>({
-      path,
-      query,
-      operationLabel,
-      method: 'GET',
-    });
-  }
-
   buildOneLinkTransId(at: Date): string {
     return ChinaMobileGatewayService.makeOneLinkTransId(
       this.getOnelinkAppid(),
@@ -147,13 +132,15 @@ export class ChinaMobileGatewayService {
     const appid = this.getOnelinkAppid();
     const password = this.getOnelinkPassword();
     const transid = ChinaMobileGatewayService.makeOneLinkTransId(appid, at);
-    const json = await this.onelinkGetJson<
-      Array<{ token?: string; ttl?: string }>
-    >(
-      ONELINK_GET_TOKEN_PATH,
-      { appid, password, transid },
-      'OneLink 获取 token',
-    );
+    const json = await this.request<Array<{ token?: string; ttl?: string }>>({
+      url: this.resolveOnelinkUrl(ONELINK_GET_TOKEN_PATH, {
+        appid,
+        password,
+        transid,
+      }),
+      operationLabel: 'OneLink 获取 token',
+      method: 'GET',
+    });
     const token = json.result?.[0]?.token?.trim();
     if (!token) {
       throw new Error('OneLink token 成功但 result[0].token 为空');
