@@ -12,6 +12,10 @@ import {
   SelectLang,
 } from '@/components';
 import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
+import {
+  isMockSessionActive,
+  MOCK_CURRENT_USER,
+} from '@/utils/mockAuth';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 import '@ant-design/v5-patch-for-react-19';
@@ -29,6 +33,9 @@ export async function getInitialState(): Promise<{
   fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
 }> {
   const fetchUserInfo = async () => {
+    if (isMockSessionActive()) {
+      return MOCK_CURRENT_USER;
+    }
     try {
       const msg = await queryCurrentUser({
         skipErrorHandler: true,
