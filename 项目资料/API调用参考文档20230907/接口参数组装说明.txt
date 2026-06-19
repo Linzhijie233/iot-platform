@@ -1,0 +1,18 @@
+1.蜂窝安全API接口时参数分为鉴权参数和业务负载参数，
+2.鉴权权参数各个接口相同，包括appid,timestamp,trans_id,token四个参数,
+  其中app_id为开通API功能时提供给企业用户，timestamp和trans_id的值由用户自行指定，token为签名字段，
+  其值是根据app_id,timestamp,trans_id三个参数的值，再加上提供给企业客户的app_secret值，四个值经过
+  加密算法计算得出，具体请参考《能力使用者接入指引 V2.7》中的sdk代码实现
+{
+"app_id":"XXXXXX",
+"timestamp":"2018-12-05 10:23:35 649",
+"trans_id":"XXXXXX",
+"token":"XXXXXXXXXXXXXXXXXXXXXXXXX",
+"data" :{
+        "messageId": "134536",
+        "openId": "xxxxxxxxxx",
+        "version": "1.0",
+        "iccids":["89860919720022503597"]
+	}
+}
+4.data中为业务负载参数，格式参考各个接口的接口文档
