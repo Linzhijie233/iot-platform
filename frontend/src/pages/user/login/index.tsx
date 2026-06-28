@@ -1,13 +1,6 @@
 import { Footer } from "@/components";
 import { MOCK_CURRENT_USER, setMockSessionActive } from "@/utils/mockAuth";
-import {
-  AlipayCircleOutlined,
-  LockOutlined,
-  MobileOutlined,
-  TaobaoCircleOutlined,
-  UserOutlined,
-  WeiboCircleOutlined,
-} from "@ant-design/icons";
+import { LockOutlined, MobileOutlined, UserOutlined } from "@ant-design/icons";
 import {
   LoginForm,
   ProFormCaptcha,
@@ -28,19 +21,21 @@ import React, { useState } from "react";
 import { flushSync } from "react-dom";
 import Settings from "../../../../config/defaultSettings";
 
-/** 本地假登录，不请求远程 /api/login/account */
+/** 本地登录校验，不请求远程 /api/login/account */
 async function mockLogin(
   values: API.LoginParams & { mobile?: string; captcha?: string },
   loginType: string
 ): Promise<API.LoginResult> {
   await new Promise((r) => setTimeout(r, 200));
   if (loginType === "account") {
-    const ok = values.username === "admin" && values.password === "ant.design";
+    // admin/ant.design 或任意非空账号密码均可登录
+    const ok = Boolean(values.username && values.password);
     return ok
       ? { status: "ok", type: "account" }
       : { status: "error", type: "account" };
   }
-  const ok = values.captcha === "1234";
+  // 手机号登录：任意手机号 + 任意验证码均可
+  const ok = Boolean(values.mobile && values.captcha);
   return ok
     ? { status: "ok", type: "mobile" }
     : { status: "error", type: "mobile" };
@@ -75,33 +70,11 @@ const useStyles = createStyles(({ token }) => {
       flexDirection: "column",
       height: "100vh",
       overflow: "auto",
-      backgroundImage:
-        "url('https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/V-_oS6r-i7wAAAAAAAAAAAAAFl94AQBr')",
-      backgroundSize: "100% 100%",
+      background:
+        "radial-gradient(120% 120% at 50% 0%, #e6f0ff 0%, #f0f5ff 35%, #f7f9fc 100%)",
     },
   };
 });
-
-const ActionIcons = () => {
-  const { styles } = useStyles();
-
-  return (
-    <>
-      <AlipayCircleOutlined
-        key="AlipayCircleOutlined"
-        className={styles.action}
-      />
-      <TaobaoCircleOutlined
-        key="TaobaoCircleOutlined"
-        className={styles.action}
-      />
-      <WeiboCircleOutlined
-        key="WeiboCircleOutlined"
-        className={styles.action}
-      />
-    </>
-  );
-};
 
 const Lang = () => {
   const { styles } = useStyles();
@@ -207,21 +180,15 @@ const Login: React.FC = () => {
             maxWidth: "75vw",
           }}
           logo={<img alt="logo" src="/logo.svg" />}
-          title="Ant Design"
+          title="物联网"
           subTitle={intl.formatMessage({
             id: "pages.layouts.userLayout.title",
           })}
           initialValues={{
             autoLogin: true,
+            username: "admin",
+            password: "ant.design",
           }}
-          actions={[
-            <FormattedMessage
-              key="loginWith"
-              id="pages.login.loginWith"
-              defaultMessage="其他登录方式"
-            />,
-            <ActionIcons key="icons" />,
-          ]}
           onFinish={async (values) => {
             await handleSubmit(values as API.LoginParams);
           }}

@@ -1,0 +1,6 @@
+# pnpm v11：忽略这些依赖的构建脚本，避免 ERR_PNPM_IGNORED_BUILDS 导致 install 退出码非 0。
+# 它们的 install/build 脚本对本项目运行无影响。
+allowBuilds:
+  '@nestjs/core': false
+  '@scarf/scarf': false
+  unrs-resolver: false

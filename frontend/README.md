@@ -1,57 +1,36 @@
-# Ant Design Pro
+# 物联网卡管理平台 · 前端
 
-This project is initialized with [Ant Design Pro](https://pro.ant.design). Follow is the quick guide for how to use.
+多运营商（移动 / 联通 / 电信）物联网卡 + 设备 + 服务 + 财务统一管理平台的前端工程。
 
-## Environment Prepare
+- 技术栈：UmiJS Max 4 + React 19 + Ant Design 5
+- 包管理：pnpm（Node ≥ 20）
+- 端口：`8000`（开发服务器）
+- 后端：同仓库 `../backend`（端口 `3000`，接口前缀 `/api`，开发时经代理转发）
 
-Install `node_modules`:
-
-```bash
-npm install
-```
-
-or
+## 安装依赖
 
 ```bash
-yarn
+pnpm install
 ```
 
-## Provided Scripts
-
-Ant Design Pro provides some useful script to help you quick start and build with web project, code style check and test.
-
-Scripts provided in `package.json`. It's safe to modify or add additional script:
-
-### Start project
+## 启动开发服务器
 
 ```bash
-npm start
+pnpm start
 ```
 
-### Build project
+启动后访问 http://localhost:8000 （默认进入「数据看板」）。
+
+## 构建生产包
 
 ```bash
-npm run build
+pnpm build
 ```
 
-### Check code style
+## 代码检查
 
 ```bash
-npm run lint
+pnpm lint        # 代码风格检查
+pnpm tsc         # 类型检查
+pnpm test        # 单元测试
 ```
-
-You can also use script to auto fix some lint error:
-
-```bash
-npm run lint:fix
-```
-
-### Test code
-
-```bash
-npm test
-```
-
-## More
-
-You can view full document on our [official website](https://pro.ant.design). And welcome any feedback in our [github](https://github.com/ant-design/ant-design-pro).

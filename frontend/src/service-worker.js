@@ -29,15 +29,7 @@ workbox.routing.registerNavigationRoute('/index.html');
 /** Handle API requests */
 workbox.routing.registerRoute(/\/api\//, workbox.strategies.networkFirst());
 
-/** Handle third party requests */
-workbox.routing.registerRoute(
-  /^https:\/\/gw\.alipayobjects\.com\//,
-  workbox.strategies.networkFirst(),
-);
-workbox.routing.registerRoute(
-  /^https:\/\/cdnjs\.cloudflare\.com\//,
-  workbox.strategies.networkFirst(),
-);
+/** Handle dynamic theme color */
 workbox.routing.registerRoute(
   /\/color.less/,
   workbox.strategies.networkFirst(),

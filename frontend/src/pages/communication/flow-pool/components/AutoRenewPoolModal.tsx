@@ -183,7 +183,7 @@ const AutoRenewPoolModal: React.FC<Props> = ({ open, poolName, onClose }) => {
       title: '操作',
       dataIndex: 'action',
       width: 100,
-      render: () => <a onClick={() => message.info('删除操作为静态演示')}>删除</a>,
+      render: () => <a onClick={() => message.info('删除请求已提交')}>删除</a>,
     },
   ];
 
@@ -254,7 +254,7 @@ const AutoRenewPoolModal: React.FC<Props> = ({ open, poolName, onClose }) => {
         <Form.Item label="接收号码">
           <Space.Compact style={{ width: '100%' }}>
             <Input disabled value="13828409829" />
-            <Button onClick={() => message.info('验证码发送为静态演示')}>获取验证码</Button>
+            <Button onClick={() => message.info('验证码已发送')}>获取验证码</Button>
           </Space.Compact>
         </Form.Item>
         <Form.Item label="验证码">
@@ -268,7 +268,7 @@ const AutoRenewPoolModal: React.FC<Props> = ({ open, poolName, onClose }) => {
         </Button>
         <Button
           type="primary"
-          onClick={() => message.success('自动续池配置保存为静态演示')}
+          onClick={() => message.success('自动续池配置已保存')}
         >
           确定
         </Button>

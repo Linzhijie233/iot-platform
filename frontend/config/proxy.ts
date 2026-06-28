@@ -10,6 +10,14 @@
  * @doc https://umijs.org/docs/guides/proxy
  */
 export default {
+  // 本地开发：8000 的 /api 代理到本地 NestJS 后端（端口 3000）。
+  // 后端已带 /api 全局前缀，故无需 pathRewrite。
+  dev: {
+    '/api/': {
+      target: 'http://localhost:3000',
+      changeOrigin: true,
+    },
+  },
   // 如果需要自定义本地开发服务器  请取消注释按需调整
   // dev: {
   //   // localhost:8000/api/** -> https://preview.pro.ant.design/api/**

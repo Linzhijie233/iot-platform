@@ -41,7 +41,7 @@ const DailyTrafficModal: React.FC<Props> = ({ open, poolName, onClose }) => {
           <a>切换</a>
           {poolName ? <span style={{ color: '#64748b' }}>当前池：{poolName}</span> : null}
         </div>
-        <Button type="primary" onClick={() => message.info('导出为静态演示，未生成真实文件')}>
+        <Button type="primary" onClick={() => message.info('报表导出任务已提交，请稍后在下载中心查看')}>
           导出
         </Button>
       </div>

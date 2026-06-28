@@ -1,0 +1,11 @@
+# pnpm v11：依赖构建脚本的批准/忽略设置。
+# 以下依赖的 install/build 脚本对本项目「开发预览/演示」无影响，统一设为 false（忽略），
+# 以避免 pnpm 抛出 ERR_PNPM_IGNORED_BUILDS 导致 `max dev` 的依赖校验中断启动。
+allowBuilds:
+  '@scarf/scarf': false
+  core-js: false
+  core-js-pure: false
+  es5-ext: false
+  esbuild: false
+  puppeteer-core: false
+  unrs-resolver: false

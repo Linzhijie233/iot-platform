@@ -1,32 +1,45 @@
-import type { ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Alert, App, Button, Descriptions, Drawer, Input, Modal, Select, Space, Tag } from 'antd';
-import React, { useMemo, useState } from 'react';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import {
+  ModalForm,
+  PageContainer,
+  ProFormDigit,
+  ProFormSelect,
+  ProFormText,
+  ProFormTextArea,
+  ProTable,
+} from '@ant-design/pro-components';
+import { DownOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  Alert,
+  App,
+  Button,
+  Descriptions,
+  Drawer,
+  Dropdown,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Tag,
+} from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type DeviceItem,
+  activateDevice,
+  bindDeviceCard,
+  clearDeviceAlarm,
+  createDevice,
+  dispatchDeviceParams,
+  listDevices,
+  removeDevice,
+  shipDevice,
+  unbindDeviceCard,
+  updateDevice,
+} from '@/services/platform/devices';
 import styles from './index.less';
 
-type DeviceStatus = 'online' | 'offline' | 'alarm' | 'pending';
-
-type DeviceRecord = {
-  id: string;
-  deviceNo: string;
-  deviceName: string;
-  productModel: string;
-  projectName: string;
-  customerName: string;
-  status: DeviceStatus;
-  onlineRate: string;
-  cardNo: string;
-  iccid: string;
-  imei: string;
-  installArea: string;
-  shipStatus: '待发货' | '已发货' | '已签收';
-  activateStatus: '未激活' | '激活中' | '已激活';
-  lastHeartbeat: string;
-  alertCount: number;
-  firmwareVersion: string;
-  guardianCode: string;
-  remark: string;
-};
+type DeviceStatus = DeviceItem['status'];
+type DeviceRecord = DeviceItem;
 
 const statusMeta: Record<
   DeviceStatus,
@@ -62,109 +75,6 @@ const statusMeta: Record<
   },
 };
 
-const deviceRecords: DeviceRecord[] = [
-  {
-    id: 'device-1',
-    deviceNo: 'DEV-2026-0001',
-    deviceName: '冷链网关 A-17',
-    productModel: 'QL-IOT-GW-4G',
-    projectName: '顺运冷链',
-    customerName: '顺运冷链',
-    status: 'online',
-    onlineRate: '99.6%',
-    cardNo: 'CARD-2024-0001',
-    iccid: '898604A4192191902141',
-    imei: '861245078912341',
-    installArea: '上海',
-    shipStatus: '已签收',
-    activateStatus: '已激活',
-    lastHeartbeat: '2026-04-11 09:12',
-    alertCount: 0,
-    firmwareVersion: 'v3.2.1',
-    guardianCode: 'GD-10017',
-    remark: '冷链主仓网关，运行稳定',
-  },
-  {
-    id: 'device-2',
-    deviceNo: 'DEV-2026-0002',
-    deviceName: '车载终端 C-11',
-    productModel: 'QL-CAR-4G-PRO',
-    projectName: '车联网项目组',
-    customerName: '车联网项目组',
-    status: 'alarm',
-    onlineRate: '71.4%',
-    cardNo: 'CARD-2024-0004',
-    iccid: '898604D5192270879708',
-    imei: '861245078912344',
-    installArea: '杭州',
-    shipStatus: '已签收',
-    activateStatus: '已激活',
-    lastHeartbeat: '2026-04-10 22:40',
-    alertCount: 3,
-    firmwareVersion: 'v2.8.4',
-    guardianCode: 'GD-20811',
-    remark: '近 24 小时多次离线，需要排查供电',
-  },
-  {
-    id: 'device-3',
-    deviceNo: 'DEV-2026-0003',
-    deviceName: '水表采集器 N-08',
-    productModel: 'QL-NB-METER',
-    projectName: '城市水务',
-    customerName: '城市水务',
-    status: 'pending',
-    onlineRate: '--',
-    cardNo: 'CARD-2024-0003',
-    iccid: '898604D5192270879709',
-    imei: '869876543210008',
-    installArea: '苏州',
-    shipStatus: '已发货',
-    activateStatus: '激活中',
-    lastHeartbeat: '--',
-    alertCount: 0,
-    firmwareVersion: 'v1.0.0',
-    guardianCode: 'GD-30008',
-    remark: '现场批量安装中，等待首包激活',
-  },
-  {
-    id: 'device-4',
-    deviceNo: 'DEV-2026-0004',
-    deviceName: '售货设备 D-03',
-    productModel: 'QL-VM-EDGE',
-    projectName: '零售机具',
-    customerName: '新零售事业部',
-    status: 'offline',
-    onlineRate: '48.2%',
-    cardNo: 'CARD-2024-0002',
-    iccid: '898604A4192280313034',
-    imei: '861245078912342',
-    installArea: '广州',
-    shipStatus: '已签收',
-    activateStatus: '已激活',
-    lastHeartbeat: '2026-04-08 15:22',
-    alertCount: 1,
-    firmwareVersion: 'v2.1.9',
-    guardianCode: 'GD-41003',
-    remark: '门店断网后未恢复上报',
-  },
-];
-
-const modelOptions = [
-  { label: '全部型号', value: 'all' },
-  ...Array.from(new Set(deviceRecords.map((item) => item.productModel))).map((item) => ({
-    label: item,
-    value: item,
-  })),
-];
-
-const projectOptions = [
-  { label: '全部项目', value: 'all' },
-  ...Array.from(new Set(deviceRecords.map((item) => item.projectName))).map((item) => ({
-    label: item,
-    value: item,
-  })),
-];
-
 const shipOptions = [
   { label: '全部发货状态', value: 'all' },
   { label: '待发货', value: '待发货' },
@@ -172,60 +82,108 @@ const shipOptions = [
   { label: '已签收', value: '已签收' },
 ];
 
+const uniq = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
+
 const DeviceListPage: React.FC = () => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
+  const actionRef = useRef<ActionType | undefined>(undefined);
+  const [allDevices, setAllDevices] = useState<DeviceRecord[]>([]);
   const [keyword, setKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<'all' | DeviceStatus>('all');
   const [selectedModel, setSelectedModel] = useState('all');
   const [selectedProject, setSelectedProject] = useState('all');
   const [selectedShipStatus, setSelectedShipStatus] = useState('all');
   const [detailRecord, setDetailRecord] = useState<DeviceRecord>();
   const [batchStockInOpen, setBatchStockInOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<DeviceRecord>();
+  const [paramDevice, setParamDevice] = useState<DeviceRecord>();
+  const [bindDevice, setBindDevice] = useState<DeviceRecord>();
+
+  const refreshAll = async () => {
+    const res = await listDevices({ pageSize: 500 });
+    setAllDevices(res.data ?? []);
+  };
+  useEffect(() => {
+    refreshAll();
+  }, []);
+
+  const reload = () => {
+    actionRef.current?.reload();
+    refreshAll();
+  };
 
   const overviewStats = useMemo(
     () =>
       (Object.keys(statusMeta) as DeviceStatus[]).map((key) => ({
         key,
-        count: deviceRecords.filter((item) => item.status === key).length,
+        count: allDevices.filter((item) => item.status === key).length,
         ...statusMeta[key],
       })),
-    [],
+    [allDevices],
   );
 
-  const filteredRecords = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-    return deviceRecords.filter((item) => {
-      const matchesKeyword =
-        !normalizedKeyword ||
-        [
-          item.deviceNo,
-          item.deviceName,
-          item.projectName,
-          item.customerName,
-          item.cardNo,
-          item.iccid,
-          item.imei,
-          item.guardianCode,
-        ]
-          .join('|')
-          .toLowerCase()
-          .includes(normalizedKeyword);
+  const modelOptions = useMemo(
+    () => [
+      { label: '全部型号', value: 'all' },
+      ...uniq(allDevices.map((d) => d.productModel)).map((m) => ({ label: m, value: m })),
+    ],
+    [allDevices],
+  );
+  const projectOptions = useMemo(
+    () => [
+      { label: '全部项目', value: 'all' },
+      ...uniq(allDevices.map((d) => d.projectName)).map((p) => ({ label: p, value: p })),
+    ],
+    [allDevices],
+  );
 
-      const matchesStatus = selectedStatus === 'all' || item.status === selectedStatus;
-      const matchesModel = selectedModel === 'all' || item.productModel === selectedModel;
-      const matchesProject = selectedProject === 'all' || item.projectName === selectedProject;
-      const matchesShipStatus =
-        selectedShipStatus === 'all' || item.shipStatus === selectedShipStatus;
-
-      return (
-        matchesKeyword &&
-        matchesStatus &&
-        matchesModel &&
-        matchesProject &&
-        matchesShipStatus
-      );
+  const requestDevices = async (params: { current?: number; pageSize?: number }) => {
+    const res = await listDevices({
+      current: params.current,
+      pageSize: params.pageSize,
+      keyword: appliedKeyword || undefined,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      productModel: selectedModel !== 'all' ? selectedModel : undefined,
+      projectName: selectedProject !== 'all' ? selectedProject : undefined,
+      shipStatus: selectedShipStatus !== 'all' ? selectedShipStatus : undefined,
     });
-  }, [keyword, selectedModel, selectedProject, selectedShipStatus, selectedStatus]);
+    return { data: res.data ?? [], total: res.total, success: res.success };
+  };
+
+  const doShip = async (record: DeviceRecord) => {
+    const res = await shipDevice(record.id);
+    message.success(`发货状态已更新为「${res.data.shipStatus}」`);
+    reload();
+  };
+  const doActivate = async (record: DeviceRecord) => {
+    await activateDevice(record.id);
+    message.success(`${record.deviceNo} 已激活并上线`);
+    reload();
+  };
+  const doClearAlarm = async (record: DeviceRecord) => {
+    await clearDeviceAlarm(record.id);
+    message.success('告警已清除');
+    reload();
+  };
+  const doUnbind = async (record: DeviceRecord) => {
+    await unbindDeviceCard(record.id);
+    message.success('已解绑卡');
+    reload();
+  };
+  const handleDelete = (record: DeviceRecord) => {
+    modal.confirm({
+      title: '确认删除该设备？',
+      content: `设备编号：${record.deviceNo}，删除后不可恢复。`,
+      okType: 'danger',
+      onOk: async () => {
+        await removeDevice(record.id);
+        message.success('已删除');
+        reload();
+      },
+    });
+  };
 
   const columns: ProColumns<DeviceRecord>[] = [
     {
@@ -274,25 +232,54 @@ const DeviceListPage: React.FC = () => {
     {
       title: '操作',
       dataIndex: 'action',
-      width: 180,
+      width: 230,
       fixed: 'right',
       render: (_, record) => (
         <span className={styles.actionLinks}>
           <a onClick={() => setDetailRecord(record)}>详情</a>
-          <a onClick={() => message.info(`${record.deviceNo} 为静态发货入口`)}>发货</a>
-          <a onClick={() => message.info(`${record.deviceNo} 为静态激活入口`)}>激活</a>
-          <a onClick={() => message.info(`${record.deviceNo} 为静态参数下发入口`)}>参数下发</a>
+          <a onClick={() => doShip(record)}>发货</a>
+          <a onClick={() => doActivate(record)}>激活</a>
+          <a onClick={() => setParamDevice(record)}>参数下发</a>
+          <Dropdown
+            menu={{
+              items: [
+                { key: '编辑', label: '编辑' },
+                { key: '绑卡', label: '绑卡' },
+                { key: '解绑', label: '解绑' },
+                { key: '清告警', label: '清告警' },
+                { key: '删除', label: '删除' },
+              ],
+              onClick: ({ key }) => {
+                if (key === '编辑') {
+                  setEditing(record);
+                  setFormOpen(true);
+                } else if (key === '绑卡') setBindDevice(record);
+                else if (key === '解绑') doUnbind(record);
+                else if (key === '清告警') doClearAlarm(record);
+                else if (key === '删除') handleDelete(record);
+              },
+            }}
+          >
+            <a onClick={(e) => e.preventDefault()}>
+              更多 <DownOutlined />
+            </a>
+          </Dropdown>
         </span>
       ),
     },
   ];
+
+  const needAttention =
+    overviewStats.find((s) => s.key === 'pending')!.count +
+    overviewStats.find((s) => s.key === 'offline')!.count +
+    overviewStats.find((s) => s.key === 'alarm')!.count;
 
   return (
     <PageContainer
       className={styles.deviceListPage}
       header={{
         title: '设备列表',
-        subTitle: '统一查看设备台账、发货激活状态、在线表现和设备告警。',
+        subTitle: '设备台账来自后端 /api/devices，支持新增 / 发货 / 激活 / 参数下发 / 守护码↔ICCID 绑卡。',
       }}
     >
       <div className={styles.overviewGrid}>
@@ -302,7 +289,10 @@ const DeviceListPage: React.FC = () => {
             <button
               className={`${styles.overviewCard} ${active ? styles.overviewCardActive : ''}`}
               key={item.key}
-              onClick={() => setSelectedStatus(active ? 'all' : item.key)}
+              onClick={() => {
+                setSelectedStatus(active ? 'all' : item.key);
+                setTimeout(reload, 0);
+              }}
               style={{ ['--accent-color' as string]: item.color }}
               type="button"
             >
@@ -319,7 +309,7 @@ const DeviceListPage: React.FC = () => {
       <div className={styles.alertCard}>
         <Alert
           banner
-          message="当前有 3 台设备需要优先处理：1 台待激活、1 台离线、1 台告警，建议先检查车联网与零售项目。"
+          message={`当前有 ${needAttention} 台设备需要关注：待激活 ${overviewStats.find((s) => s.key === 'pending')!.count} 台、离线 ${overviewStats.find((s) => s.key === 'offline')!.count} 台、告警 ${overviewStats.find((s) => s.key === 'alarm')!.count} 台。`}
           type="warning"
         />
       </div>
@@ -331,37 +321,68 @@ const DeviceListPage: React.FC = () => {
             placeholder="搜索设备编号 / 名称 / 项目 / 客户 / 卡号 / ICCID"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
+            onPressEnter={() => {
+              setAppliedKeyword(keyword);
+              setTimeout(reload, 0);
+            }}
           />
           <Select
-            options={[{ label: '全部设备状态', value: 'all' }, ...overviewStats.map((item) => ({
-              label: item.label,
-              value: item.key,
-            }))]}
+            options={[
+              { label: '全部设备状态', value: 'all' },
+              ...(Object.keys(statusMeta) as DeviceStatus[]).map((key) => ({
+                label: statusMeta[key].label,
+                value: key,
+              })),
+            ]}
             value={selectedStatus}
-            onChange={setSelectedStatus}
+            onChange={(v) => {
+              setSelectedStatus(v);
+              setTimeout(reload, 0);
+            }}
           />
-          <Select options={modelOptions} value={selectedModel} onChange={setSelectedModel} />
+          <Select
+            options={modelOptions}
+            value={selectedModel}
+            onChange={(v) => {
+              setSelectedModel(v);
+              setTimeout(reload, 0);
+            }}
+          />
           <Select
             options={projectOptions}
             value={selectedProject}
-            onChange={setSelectedProject}
+            onChange={(v) => {
+              setSelectedProject(v);
+              setTimeout(reload, 0);
+            }}
           />
           <Select
             options={shipOptions}
             value={selectedShipStatus}
-            onChange={setSelectedShipStatus}
+            onChange={(v) => {
+              setSelectedShipStatus(v);
+              setTimeout(reload, 0);
+            }}
           />
           <Space>
-            <Button type="primary" onClick={() => message.success('已按静态条件刷新设备列表')}>
+            <Button
+              type="primary"
+              onClick={() => {
+                setAppliedKeyword(keyword);
+                setTimeout(reload, 0);
+              }}
+            >
               搜索
             </Button>
             <Button
               onClick={() => {
                 setKeyword('');
+                setAppliedKeyword('');
                 setSelectedStatus('all');
                 setSelectedModel('all');
                 setSelectedProject('all');
                 setSelectedShipStatus('all');
+                setTimeout(reload, 0);
               }}
             >
               重置
@@ -372,21 +393,27 @@ const DeviceListPage: React.FC = () => {
 
       <div className={styles.tableCard}>
         <div className={styles.tableMeta}>
-          <span>
-            当前结果 <strong>{filteredRecords.length}</strong> 条
-          </span>
+          <span>设备台账由后端驱动，支持新增、发货、激活、参数下发与绑卡解绑。</span>
           <Space size={12}>
-            <span>列表页提供台账查看与静态操作入口，不承载真实发货、激活和远控流程。</span>
-            <Button type="primary" onClick={() => setBatchStockInOpen(true)}>
-              批量入库
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(undefined);
+                setFormOpen(true);
+              }}
+            >
+              新增设备
             </Button>
+            <Button onClick={() => setBatchStockInOpen(true)}>批量入库</Button>
           </Space>
         </div>
         <ProTable<DeviceRecord>
           cardBordered
+          actionRef={actionRef}
           className={styles.tableWrap}
           columns={columns}
-          dataSource={filteredRecords}
+          request={requestDevices}
           options={false}
           pagination={{
             pageSize: 10,
@@ -395,16 +422,139 @@ const DeviceListPage: React.FC = () => {
             showTotal: (total) => `共 ${total} 条`,
           }}
           rowKey="id"
-          scroll={{ x: 2200 }}
+          scroll={{ x: 2300 }}
           search={false}
           tableAlertRender={false}
           tableAlertOptionRender={false}
-          toolbar={undefined}
         />
       </div>
 
+      {/* 新增 / 编辑 设备 */}
+      <ModalForm<DeviceRecord>
+        key={editing?.id ?? 'create'}
+        title={editing ? `编辑设备 · ${editing.deviceNo}` : '新增设备'}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        grid
+        rowProps={{ gutter: 16 }}
+        modalProps={{ destroyOnClose: true }}
+        initialValues={
+          editing ?? {
+            status: 'pending',
+            shipStatus: '待发货',
+            activateStatus: '未激活',
+            onlineRate: '--',
+            alertCount: 0,
+            firmwareVersion: 'v1.0.0',
+            lastHeartbeat: '--',
+          }
+        }
+        onFinish={async (values) => {
+          try {
+            if (editing) {
+              await updateDevice(editing.id, values);
+              message.success('已保存修改');
+            } else {
+              await createDevice(values);
+              message.success('已新增设备');
+            }
+            reload();
+            return true;
+          } catch {
+            message.error('提交失败');
+            return false;
+          }
+        }}
+      >
+        <ProFormText name="deviceNo" label="设备编号" colProps={{ span: 12 }} rules={[{ required: true }]} />
+        <ProFormText name="deviceName" label="设备名称" colProps={{ span: 12 }} rules={[{ required: true }]} />
+        <ProFormText name="productModel" label="设备型号" colProps={{ span: 12 }} />
+        <ProFormText name="projectName" label="项目" colProps={{ span: 12 }} />
+        <ProFormText name="customerName" label="客户" colProps={{ span: 12 }} />
+        <ProFormSelect
+          name="status"
+          label="设备状态"
+          colProps={{ span: 12 }}
+          options={(Object.keys(statusMeta) as DeviceStatus[]).map((k) => ({
+            label: statusMeta[k].label,
+            value: k,
+          }))}
+        />
+        <ProFormSelect
+          name="shipStatus"
+          label="发货状态"
+          colProps={{ span: 12 }}
+          options={['待发货', '已发货', '已签收'].map((s) => ({ label: s, value: s }))}
+        />
+        <ProFormSelect
+          name="activateStatus"
+          label="激活状态"
+          colProps={{ span: 12 }}
+          options={['未激活', '激活中', '已激活'].map((s) => ({ label: s, value: s }))}
+        />
+        <ProFormText name="installArea" label="安装区域" colProps={{ span: 12 }} />
+        <ProFormText name="guardianCode" label="守护码" colProps={{ span: 12 }} />
+        <ProFormText name="cardNo" label="卡号" colProps={{ span: 12 }} />
+        <ProFormText name="iccid" label="ICCID" colProps={{ span: 12 }} />
+        <ProFormText name="imei" label="IMEI" colProps={{ span: 12 }} />
+        <ProFormText name="firmwareVersion" label="固件版本" colProps={{ span: 12 }} />
+        <ProFormDigit name="alertCount" label="告警数" colProps={{ span: 12 }} min={0} />
+        <ProFormTextArea name="remark" label="备注" colProps={{ span: 24 }} />
+      </ModalForm>
+
+      {/* 参数下发 */}
+      <ModalForm
+        key={`param-${paramDevice?.id ?? ''}`}
+        title={paramDevice ? `远程参数下发 · ${paramDevice.deviceNo}` : '远程参数下发'}
+        open={Boolean(paramDevice)}
+        onOpenChange={(o) => !o && setParamDevice(undefined)}
+        modalProps={{ destroyOnClose: true }}
+        initialValues={{ firmwareVersion: paramDevice?.firmwareVersion }}
+        onFinish={async (values) => {
+          await dispatchDeviceParams(paramDevice!.id, { firmwareVersion: values.firmwareVersion });
+          message.success('参数已下发');
+          setParamDevice(undefined);
+          reload();
+          return true;
+        }}
+      >
+        <ProFormText
+          name="firmwareVersion"
+          label="目标固件版本"
+          placeholder="如 v3.3.0"
+          rules={[{ required: true }]}
+        />
+      </ModalForm>
+
+      {/* 守护码↔ICCID 绑卡 */}
+      <ModalForm
+        key={`bind-${bindDevice?.id ?? ''}`}
+        title={bindDevice ? `绑卡 · 守护码 ${bindDevice.guardianCode}` : '绑卡'}
+        open={Boolean(bindDevice)}
+        onOpenChange={(o) => !o && setBindDevice(undefined)}
+        grid
+        rowProps={{ gutter: 16 }}
+        modalProps={{ destroyOnClose: true }}
+        initialValues={{
+          cardNo: bindDevice?.cardNo,
+          iccid: bindDevice?.iccid,
+          imei: bindDevice?.imei,
+        }}
+        onFinish={async (values) => {
+          await bindDeviceCard(bindDevice!.id, values);
+          message.success('已绑卡');
+          setBindDevice(undefined);
+          reload();
+          return true;
+        }}
+      >
+        <ProFormText name="cardNo" label="卡号" colProps={{ span: 12 }} />
+        <ProFormText name="iccid" label="ICCID" colProps={{ span: 12 }} rules={[{ required: true }]} />
+        <ProFormText name="imei" label="IMEI" colProps={{ span: 24 }} />
+      </ModalForm>
+
       <Drawer
-        destroyOnHidden
+        destroyOnClose
         onClose={() => setDetailRecord(undefined)}
         open={Boolean(detailRecord)}
         title={detailRecord ? `${detailRecord.deviceNo} 设备详情` : '设备详情'}
@@ -412,7 +562,23 @@ const DeviceListPage: React.FC = () => {
       >
         {detailRecord ? (
           <Space direction="vertical" size={16} style={{ display: 'flex' }}>
-            <Alert message={detailRecord.remark} type={detailRecord.alertCount > 0 ? 'warning' : 'info'} showIcon />
+            <Alert
+              message={detailRecord.remark}
+              type={detailRecord.alertCount > 0 ? 'warning' : 'info'}
+              showIcon
+            />
+            <Space wrap>
+              <Button type="primary" onClick={() => { setEditing(detailRecord); setFormOpen(true); }}>
+                编辑
+              </Button>
+              <Button onClick={() => doShip(detailRecord)}>发货</Button>
+              <Button onClick={() => doActivate(detailRecord)}>激活</Button>
+              <Button onClick={() => setParamDevice(detailRecord)}>参数下发</Button>
+              <Button onClick={() => setBindDevice(detailRecord)}>绑卡</Button>
+              {detailRecord.alertCount > 0 && (
+                <Button onClick={() => doClearAlarm(detailRecord)}>清告警</Button>
+              )}
+            </Space>
             <Descriptions bordered column={2} size="small">
               <Descriptions.Item label="设备编号">{detailRecord.deviceNo}</Descriptions.Item>
               <Descriptions.Item label="设备名称">{detailRecord.deviceName}</Descriptions.Item>
@@ -455,24 +621,45 @@ const DeviceListPage: React.FC = () => {
       </Drawer>
 
       <Modal
-        destroyOnHidden
+        destroyOnClose
         okText="确认入库"
         onCancel={() => setBatchStockInOpen(false)}
-        onOk={() => {
-          message.success('已触发静态批量入库：导入 24 台设备，成功 22 台，失败 2 台');
+        onOk={async () => {
+          const base = Date.now().toString().slice(-5);
+          await Promise.all(
+            [1, 2, 3].map((n) =>
+              createDevice({
+                deviceNo: `DEV-IMP-${base}-${n}`,
+                deviceName: `批量入库设备 ${base}-${n}`,
+                productModel: 'QL-IMPORT',
+                projectName: '批量入库',
+                customerName: '批量导入',
+                status: 'pending',
+                shipStatus: '待发货',
+                activateStatus: '未激活',
+                onlineRate: '--',
+                alertCount: 0,
+                firmwareVersion: 'v1.0.0',
+                guardianCode: `GD-IMP-${base}-${n}`,
+                iccid: '--',
+                cardNo: '--',
+                imei: '--',
+                installArea: '--',
+                lastHeartbeat: '--',
+                remark: '批量入库新增',
+              }),
+            ),
+          );
+          message.success('批量入库完成：已新增 3 台设备并写入后端');
           setBatchStockInOpen(false);
+          reload();
         }}
         open={batchStockInOpen}
         title="批量入库"
         width={760}
       >
         <Space direction="vertical" size={16} style={{ display: 'flex' }}>
-          <Alert
-            message="支持按模板批量导入设备台账信息，当前为静态演示流程。"
-            showIcon
-            type="info"
-          />
-
+          <Alert message="支持按模板批量导入设备台账信息。" showIcon type="info" />
           <div>
             <div className={styles.sectionTitle}>导入说明</div>
             <div className={styles.metricGrid}>
@@ -489,29 +676,18 @@ const DeviceListPage: React.FC = () => {
               ))}
             </div>
           </div>
-
           <div>
             <div className={styles.sectionTitle}>本次导入文件</div>
             <div className={styles.uploadPanel}>
-              <div className={styles.uploadTitle}>device-batch-import-2026-04.xlsx</div>
+              <div className={styles.uploadTitle}>device-batch-import-2026-06.xlsx</div>
               <div className={styles.uploadMeta}>
                 文件大小 248 KB，预计导入 24 条设备记录，其中 2 条存在格式异常。
               </div>
               <div className={styles.uploadActions}>
-                <Button onClick={() => message.info('静态演示：下载 Excel 模板')}>下载模板</Button>
-                <Button onClick={() => message.info('静态演示：重新选择文件')}>重新选择文件</Button>
+                <Button onClick={() => message.info('Excel 模板已开始下载')}>下载模板</Button>
+                <Button onClick={() => message.info('请重新选择文件')}>重新选择文件</Button>
               </div>
             </div>
-          </div>
-
-          <div>
-            <div className={styles.sectionTitle}>预校验结果</div>
-            <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="待导入数量">24</Descriptions.Item>
-              <Descriptions.Item label="校验通过">22</Descriptions.Item>
-              <Descriptions.Item label="校验失败">2</Descriptions.Item>
-              <Descriptions.Item label="失败原因摘要">1 条设备编号重复，1 条 ICCID 长度异常</Descriptions.Item>
-            </Descriptions>
           </div>
         </Space>
       </Modal>

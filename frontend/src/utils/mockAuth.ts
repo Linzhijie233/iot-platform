@@ -1,14 +1,13 @@
-/** Mock 登录会话：存在时 getInitialState 不再请求远端 currentUser */
+/** 本地登录会话：存在时 getInitialState 不再请求远端 currentUser */
 
 export const MOCK_AUTH_SESSION_KEY = "iot-platform-mock-auth-session";
 
 export const MOCK_CURRENT_USER: API.CurrentUser = {
-  name: "Mock Admin",
-  avatar:
-    "https://gw.alipayobjects.com/zos/antfincdn/XAosXuNZyF/BiazfanxmamNRoxxVxka.png",
+  name: "系统管理员",
+  avatar: "/logo.svg",
   userid: "00000001",
   access: "admin",
-  title: "Mock",
+  title: "平台管理员",
 };
 
 export function isMockSessionActive(): boolean {

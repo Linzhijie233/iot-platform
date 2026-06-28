@@ -97,13 +97,13 @@ const OrderVoicePackageModal: React.FC<Props> = ({ open, poolName, onClose }) =>
           <Button
             style={{ marginRight: 12 }}
             type="primary"
-            onClick={() => message.info('余额支付为静态演示，未接入真实支付')}
+            onClick={() => message.info('支付功能即将开放，请联系客户经理')}
           >
             余额支付
           </Button>
           <Button
             type="primary"
-            onClick={() => message.info('在线支付为静态演示，未接入真实支付')}
+            onClick={() => message.info('支付功能即将开放，请联系客户经理')}
           >
             在线支付
           </Button>

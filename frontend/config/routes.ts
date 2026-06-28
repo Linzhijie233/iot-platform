@@ -23,9 +23,21 @@ export default [
     ],
   },
   {
+    path: "/data-board",
+    name: "data-board",
+    icon: "dashboard",
+    component: "./dashboard",
+  },
+  {
+    path: "/alert-center",
+    name: "alert-center",
+    icon: "alert",
+    component: "./alert-center",
+  },
+  {
     path: "/admin",
     name: "admin",
-    icon: "crown",
+    icon: "setting",
     access: "canAdmin",
     routes: [
       {
@@ -155,7 +167,7 @@ export default [
   },
   {
     path: "/",
-    redirect: "/communication/card-identifier-management",
+    redirect: "/data-board",
   },
   {
     path: "*",

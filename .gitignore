@@ -1,1 +1,22 @@
 docs/
+
+# 部署沙盒（独立 git 仓库，含第三方完整项目，约 294MB，不纳入本仓库）
+bushu350/
+
+# 本地 Claude Code 配置/技能
+.claude/
+
+# 依赖与构建产物（子目录另有 .gitignore，这里再兜底一层）
+node_modules/
+dist/
+build/
+
+# 环境变量与密钥（防止误提交）
+.env
+.env.*
+*.local
+
+# 日志与系统文件
+*.log
+.DS_Store
+Thumbs.db
